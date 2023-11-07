@@ -1,4 +1,11 @@
 # Carla 
+Goal:
+- setup Carla in Docker as server 
+- setup Python client to connect to Carla server
+- setup autonomous agent to control the vehicle in Carla and render
+
+## Examples
+
 
 
 ## Carla in Docker
