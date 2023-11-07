@@ -31,3 +31,10 @@ If we simply use off-screen mode,
     ```
     sudo docker run --privileged --gpus all --net=host -v /tmp/.X11-unix:/tmp/.X11-unix:rw carlasim/carla:0.9.12 /bin/bash ./CarlaUE4.sh -RenderOffScreen
     ```
+
+### Windows
+
+Carla on Windows SUCKS. 
+
+-`0.9.14`: The shipped binaries from github release cannot load `Town06/06 and Town12` and maybe others. 
+It seems one has to build Carla from source to get it working according to [this](https://github.com/carla-simulator/carla/issues/6616).
