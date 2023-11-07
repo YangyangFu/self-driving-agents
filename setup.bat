@@ -1,4 +1,12 @@
-:: set up PythonAPI for Carla
-set CARLA_DIR=C:\Users\yf3831\CARLA_0.9.10\WindowsNoEditor
-set PYTHONPATH=%CARLA_DIR%\PythonAPI\carla\dist\carla-0.9.10-py3.7-win-amd64.egg;%PYTHONPATH%
+REM get current project path
+set PROJECT_PATH=%~dp0
+echo %PROJECT_PATH%
 
+REM carla version
+set CARLA_VERSION=0.9.14
+
+REM set up paths
+set CARLA_ROOT=C:\Users\yf3831\CARLA_%CARLA_VERSION%\WindowsNoEditor
+set LEADERBOARD_ROOT=%PROJECT_PATH%\leaderboard
+set SCENARIO_RUNNER_ROOT=%PROJECT_PATH%\scenario_runner
+set PYTHONPATH=%LEADERBOARD_ROOT%;%SCENARIO_RUNNER_ROOT%;%CARLA_ROOT%\PythonAPI\carla;%CARLA_ROOT%\PythonAPI\carla\dist\carla-%CARLA_VERSION%-py3.7-win-amd64.egg;%PYTHONPATH%

@@ -5,8 +5,14 @@ Goal:
 - setup autonomous agent to control the vehicle in Carla and render
 
 ## Examples
+The Carla `leadboard` library has set up a few scenarios to run customized agents for performance comparison. We can start from there.
 
+setup environment: check [this](https://leaderboard.carla.org/get_started/) out.
 
+`Shapely` library has an error on Windows 11. need a fresh installation, probably using `conda install` instead of `pip`
+```
+conda install -c conda-forge shapely==1.7.1 numpy==1.18.4
+```
 
 ## Carla in Docker
 
