@@ -5,7 +5,7 @@ client = carla.Client('localhost', 2000)
 world = client.get_world()
 
 # load a map
-client.load_world('Town10HD')
+client.load_world('Town05')
 
 # adding vehicles and NPCs
 # spawn vehicles

@@ -6,4 +6,4 @@ docker run \
     -v $XAUTHORITY:$XAUTHORITY \
     -it --gpus 'all,"capabilities=graphics,utility,display,video,compute"' \
     -p 2000-2002:2000-2002 carlasim/carla:0.9.14 \
-    ./CarlaUE4.sh -quality-level=Epic
+    ./CarlaUE4.sh -quality-level=Low -fps=15 -windowed -ResX=600 -ResY=480
