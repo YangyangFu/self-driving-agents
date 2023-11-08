@@ -1,1 +1,0 @@
-docker run -e DISPLAY=$DISPLAY --net=host --gpus all --runtime=nvidia carlasim/carla:0.9.10.1 /bin/bash CarlaUE4.sh -opengl
