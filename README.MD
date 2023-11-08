@@ -1,5 +1,18 @@
 # Carla 
+Goal:
+- setup Carla in Docker as server 
+- setup Python client to connect to Carla server
+- setup autonomous agent to control the vehicle in Carla and render
 
+## Examples
+The Carla `leadboard` library has set up a few scenarios to run customized agents for performance comparison. We can start from there.
+
+setup environment: check [this](https://leaderboard.carla.org/get_started/) out.
+
+`Shapely` library has an error on Windows 11. need a fresh installation, probably using `conda install` instead of `pip`
+```
+conda install -c conda-forge shapely==1.7.1 numpy==1.18.4
+```
 
 ## Carla in Docker
 
@@ -18,3 +31,10 @@ If we simply use off-screen mode,
     ```
     sudo docker run --privileged --gpus all --net=host -v /tmp/.X11-unix:/tmp/.X11-unix:rw carlasim/carla:0.9.12 /bin/bash ./CarlaUE4.sh -RenderOffScreen
     ```
+
+### Windows
+
+Carla on Windows SUCKS. 
+
+-`0.9.14`: The shipped binaries from github release cannot load `Town06/06 and Town12` and maybe others. 
+It seems one has to build Carla from source to get it working according to [this](https://github.com/carla-simulator/carla/issues/6616).
