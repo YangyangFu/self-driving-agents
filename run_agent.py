@@ -716,9 +716,16 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(60.0)
 
+        # check available maps
+        available_maps = client.get_available_maps()
+        print("Available maps: ", available_maps)
+        
         traffic_manager = client.get_trafficmanager()
+        #TODO: understand why this is needed. seems it is not used later.
         sim_world = client.get_world()
 
+        # if use synchronous mode and fixed simulation time step
+        # then traffic manager has to be set to synchronous mode as well
         if args.sync:
             settings = sim_world.get_settings()
             settings.synchronous_mode = True
@@ -727,12 +734,18 @@ def game_loop(args):
 
             traffic_manager.set_synchronous_mode(True)
 
+        # set up a display to render the game
+        # pygame.HWSURFACE: hardware accelerated
+        # pygame.DOUBLEBUF: use a double buffer for rendering
         display = pygame.display.set_mode(
             (args.width, args.height),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
 
+        # set up heads-up display info
         hud = HUD(args.width, args.height)
         world = World(client.get_world(), hud, args)
+
+        # set up a control agent
         controller = KeyboardControl(world)
         if args.agent == "Basic":
             agent = BasicAgent(world.player, 30)
