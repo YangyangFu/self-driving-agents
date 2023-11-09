@@ -105,6 +105,9 @@ def get_actor_blueprints(world, filter, generation):
         print("   Warning! Actor Generation is not valid. No actor will be spawned.")
         return []
 
+def spawn_npc(world, number_of_vehicles, number_of_walkers):
+    
+
 # ==============================================================================
 # -- World ---------------------------------------------------------------
 # ==============================================================================
@@ -131,7 +134,8 @@ class World(object):
         self.camera_manager = None
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
-        self._actor_filter = args.filter
+        self._vehicle_filter = args.filter_vehicle
+        self._walker_filter = args.filter_walker
         self._actor_generation = args.generation # vehicle/walker asset generation: new(gen 2), old(gen 1)
         self.restart(args)
         # on_tick is used in async mode: it start callbacks from the client for the callback function as defined, and return the ID of callback
@@ -146,13 +150,15 @@ class World(object):
         cam_index = self.camera_manager.index if self.camera_manager is not None else 0
         cam_pos_id = self.camera_manager.transform_index if self.camera_manager is not None else 0
 
-        # Get a random blueprint.
-        blueprint = random.choice(get_actor_blueprints(self.world, self._actor_filter, self._actor_generation))
+        # Spawn a player
+        blueprints_vehicle = get_actor_blueprints(self.world, self._vehicle_filter, self._actor_generation)
+        blueprints_walker = get_actor_blueprints(self.world, self._walker_filter, self._actor_generation)
+        
+        # use a Tesla model 3 as the ego vehicle
+        blueprint = blueprints_vehicle.filter('vehicle.tesla.model3')
         blueprint.set_attribute('role_name', 'hero')
-        if blueprint.has_attribute('color'):
-            color = random.choice(blueprint.get_attribute('color').recommended_values)
-            blueprint.set_attribute('color', color)
-
+        blueprint.set_attribute('color', '0,0,0')
+        
         # Spawn the player.
         if self.player is not None:
             spawn_point = self.player.get_transform()
@@ -172,6 +178,9 @@ class World(object):
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
             self.modify_vehicle_physics(self.player)
 
+        # Spawn some traffic vehicles/pedestrians.
+        
+          
         if self._args.sync:
             self.world.tick()
         else:
@@ -213,6 +222,57 @@ class World(object):
         self.camera_manager.render(display)
         self.hud.render(display)
 
+    def spawn_traffic(self, blueprints_vehicle, blueprints_walker, number_of_vehicles, number_of_walkers):
+        blueprints_vehicle = [x for x in blueprints_vehicle if x.get_attribute('base_type') == 'car']
+        blueprints_vehicle = sorted(blueprints_vehicle, key=lambda bp: bp.id)
+        
+        spawn_points = self.map.get_spawn_points()
+        number_of_spawn_points = len(spawn_points)
+        
+        if number_of_vehicles <= number_of_spawn_points:
+            random.shuffle(spawn_points)
+        elif number_of_vehicles > number_of_spawn_points:
+            msg = 'requested %d vehicles, but could only find %d spawn points'
+            logging.warning(msg, number_of_vehicles, number_of_spawn_points)
+            number_of_vehicles = number_of_spawn_points
+        
+        spawn_actor = carla.command.SpawnActor
+        set_autopilot = carla.command.SetAutopilot
+        future_actor = carla.command.FutureActor
+        
+        # spawn vehicles
+        vehicles_list = []
+        batch = []
+        for n, transform in enumerate(spawn_points):
+            if n >= number_of_vehicles:
+                break
+            blueprint = random.choice(blueprints_vehicle)
+            if blueprint.has_attribute('color'):
+                color = random.choice(blueprint.get_attribute('color').recommended_values)
+                blueprint.set_attribute('color', color)
+            if blueprint.has_attribute('driver_id'):
+                driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
+                blueprint.set_attribute('driver_id', driver_id)
+            
+            # set to autopilot 
+            #blueprint.set_attribute('role_name', 'hero')
+            blueprint.set_attribute('role_name', 'autopilot')
+            
+            # spawn the cars and set their autopilot and light states all together
+            batch.append(spawn_actor(blueprint, transform).then(set_autopilot(future_actor, True, traffic_manager.get_port())))
+            
+        for response in client.apply_batch_sync(batch, synchronous_master):
+            if response.error:
+                logging.error(response.error)
+            else:
+                vehicles_list.append(response.actor_id)
+        
+        # set automatic vehicle lights update 
+        all_vehicle_actors = self.world.get_actors(vehicles_list)
+        for actor in all_vehicle_actors:
+            traffic_manager.update_vehicle_lights(actor, True)
+        
+        
     def destroy_sensors(self):
         """Destroy sensors"""
         self.camera_manager.sensor.destroy()
@@ -848,10 +908,16 @@ def main():
         action='store_true',
         help='Synchronous mode execution')
     argparser.add_argument(
-        '--filter',
+        '--filter_vehicle',
         metavar='PATTERN',
         default='vehicle.*',
         help='Actor filter (default: "vehicle.*")')
+    argparser.add_argument(
+        '--filter_walker',
+        metavar='PATTERN',
+        default='walker.pedestrian.*',
+        help='Filter pedestrian type (default: "walker.pedestrian.*")'
+    )
     argparser.add_argument(
         '--generation',
         metavar='G',
