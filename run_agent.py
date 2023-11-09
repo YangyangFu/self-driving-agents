@@ -132,8 +132,10 @@ class World(object):
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._actor_filter = args.filter
-        self._actor_generation = args.generation
+        self._actor_generation = args.generation # vehicle/walker asset generation: new(gen 2), old(gen 1)
         self.restart(args)
+        # on_tick is used in async mode: it start callbacks from the client for the callback function as defined, and return the ID of callback
+        # the callback function is called when the server ticks.
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.recording_start = 0
@@ -745,8 +747,10 @@ def game_loop(args):
         hud = HUD(args.width, args.height)
         world = World(client.get_world(), hud, args)
 
-        # set up a control agent
+        # set up a keyboard controller to quit the game by pressing ESC/q
         controller = KeyboardControl(world)
+        
+        # set up an control agent
         if args.agent == "Basic":
             agent = BasicAgent(world.player, 30)
             agent.follow_speed_limits(True)
@@ -772,6 +776,8 @@ def game_loop(args):
                 world.world.tick()
             else:
                 world.world.wait_for_tick()
+            
+            # if interupted by user, then quit the game
             if controller.parse_events():
                 return
 
