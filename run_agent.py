@@ -62,7 +62,7 @@ from agents.navigation.behavior_agent import BehaviorAgent  # pylint: disable=im
 from agents.navigation.basic_agent import BasicAgent  # pylint: disable=import-error
 from agents.navigation.constant_velocity_agent import ConstantVelocityAgent  # pylint: disable=import-error
 
-
+TRAJ_COLOR = (248, 64, 24)
 # ==============================================================================
 # -- Global functions ----------------------------------------------------------
 # ==============================================================================
@@ -862,6 +862,23 @@ def game_loop(args):
 
             world.tick(clock)
             world.render(display)
+
+            # display next waypoints
+            traj = agent.get_local_planner()._waypoints_queue
+            
+            traj_surface = pygame.Surface((args.width, args.height))
+            traj_surface.set_colorkey((0, 0, 0))
+            locations = []
+            for i in range(min(20, len(traj))):
+                transform = traj[i][0].transform
+                locations.append(transform.location)
+
+            for i in range(len(locations)-1):
+                #carla.DebugHelper.draw_line(traj_surface, TRAJ_COLOR, points[i], points[i+1], 5)
+                #world.world.debug.draw_line(locations[i], locations[i+1], color = carla.Color(255, 0, 0), life_time=0.1)
+                world.world.debug.draw_point(locations[i], size=0.05, color = carla.Color(255, 0, 0), life_time=0.1)
+            display.blit(traj_surface, (0, 0))
+            
             pygame.display.flip()
 
             if agent.done():
