@@ -105,9 +105,6 @@ def get_actor_blueprints(world, filter, generation):
         print("   Warning! Actor Generation is not valid. No actor will be spawned.")
         return []
 
-def spawn_npc(world, number_of_vehicles, number_of_walkers):
-    
-
 # ==============================================================================
 # -- World ---------------------------------------------------------------
 # ==============================================================================
@@ -151,11 +148,11 @@ class World(object):
         cam_pos_id = self.camera_manager.transform_index if self.camera_manager is not None else 0
 
         # Spawn a player
-        blueprints_vehicle = get_actor_blueprints(self.world, self._vehicle_filter, self._actor_generation)
-        blueprints_walker = get_actor_blueprints(self.world, self._walker_filter, self._actor_generation)
+        #lueprints_vehicle = get_actor_blueprints(self.world, self._vehicle_filter, self._actor_generation)
+        #blueprints_walker = get_actor_blueprints(self.world, self._walker_filter, self._actor_generation)
         
         # use a Tesla model 3 as the ego vehicle
-        blueprint = blueprints_vehicle.filter('vehicle.tesla.model3')
+        blueprint = self.world.get_blueprint_library().filter('vehicle.tesla.model3')[0]
         blueprint.set_attribute('role_name', 'hero')
         blueprint.set_attribute('color', '0,0,0')
         
@@ -222,57 +219,6 @@ class World(object):
         self.camera_manager.render(display)
         self.hud.render(display)
 
-    def spawn_traffic(self, blueprints_vehicle, blueprints_walker, number_of_vehicles, number_of_walkers):
-        blueprints_vehicle = [x for x in blueprints_vehicle if x.get_attribute('base_type') == 'car']
-        blueprints_vehicle = sorted(blueprints_vehicle, key=lambda bp: bp.id)
-        
-        spawn_points = self.map.get_spawn_points()
-        number_of_spawn_points = len(spawn_points)
-        
-        if number_of_vehicles <= number_of_spawn_points:
-            random.shuffle(spawn_points)
-        elif number_of_vehicles > number_of_spawn_points:
-            msg = 'requested %d vehicles, but could only find %d spawn points'
-            logging.warning(msg, number_of_vehicles, number_of_spawn_points)
-            number_of_vehicles = number_of_spawn_points
-        
-        spawn_actor = carla.command.SpawnActor
-        set_autopilot = carla.command.SetAutopilot
-        future_actor = carla.command.FutureActor
-        
-        # spawn vehicles
-        vehicles_list = []
-        batch = []
-        for n, transform in enumerate(spawn_points):
-            if n >= number_of_vehicles:
-                break
-            blueprint = random.choice(blueprints_vehicle)
-            if blueprint.has_attribute('color'):
-                color = random.choice(blueprint.get_attribute('color').recommended_values)
-                blueprint.set_attribute('color', color)
-            if blueprint.has_attribute('driver_id'):
-                driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
-                blueprint.set_attribute('driver_id', driver_id)
-            
-            # set to autopilot 
-            #blueprint.set_attribute('role_name', 'hero')
-            blueprint.set_attribute('role_name', 'autopilot')
-            
-            # spawn the cars and set their autopilot and light states all together
-            batch.append(spawn_actor(blueprint, transform).then(set_autopilot(future_actor, True, traffic_manager.get_port())))
-            
-        for response in client.apply_batch_sync(batch, synchronous_master):
-            if response.error:
-                logging.error(response.error)
-            else:
-                vehicles_list.append(response.actor_id)
-        
-        # set automatic vehicle lights update 
-        all_vehicle_actors = self.world.get_actors(vehicles_list)
-        for actor in all_vehicle_actors:
-            traffic_manager.update_vehicle_lights(actor, True)
-        
-        
     def destroy_sensors(self):
         """Destroy sensors"""
         self.camera_manager.sensor.destroy()
@@ -756,6 +702,69 @@ class CameraManager(object):
         if self.recording:
             image.save_to_disk('_out/%08d' % image.frame)
 
+
+# =========================================================================
+# ------ Spawn NPC/Traffic
+# =========================================================================
+def spawn_traffic(client, traffic_manager, number_of_vehicles, number_of_walkers=0):
+    # set traffic behavior
+    # lets do a normal driving style for all cars
+    traffic_manager.set_global_distance_to_leading_vehicle(2.5)
+    traffic_manager.global_percentage_speed_difference(0.0) # 0% slower than speed limit
+    
+    # spawn vehicles
+    blueprints_vehicle = client.get_world().get_blueprint_library().filter('vehicle.*')
+    blueprints_vehicle = [x for x in blueprints_vehicle if x.get_attribute('base_type') == 'car']
+    blueprints_vehicle = sorted(blueprints_vehicle, key=lambda bp: bp.id)
+    
+    spawn_points = client.get_world().get_map().get_spawn_points()
+    number_of_spawn_points = len(spawn_points)
+    
+    if number_of_vehicles <= number_of_spawn_points:
+        random.shuffle(spawn_points)
+    elif number_of_vehicles > number_of_spawn_points:
+        msg = 'requested %d vehicles, but could only find %d spawn points'
+        logging.warning(msg, number_of_vehicles, number_of_spawn_points)
+        number_of_vehicles = number_of_spawn_points
+    
+    spawn_actor = carla.command.SpawnActor
+    set_autopilot = carla.command.SetAutopilot
+    future_actor = carla.command.FutureActor
+    
+    # spawn vehicles
+    vehicles_list = []
+    batch = []
+    for n, transform in enumerate(spawn_points):
+        if n >= number_of_vehicles:
+            break
+        blueprint = random.choice(blueprints_vehicle)
+        if blueprint.has_attribute('color'):
+            color = random.choice(blueprint.get_attribute('color').recommended_values)
+            blueprint.set_attribute('color', color)
+        if blueprint.has_attribute('driver_id'):
+            driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
+            blueprint.set_attribute('driver_id', driver_id)
+        
+        # set to autopilot 
+        #blueprint.set_attribute('role_name', 'hero')
+        blueprint.set_attribute('role_name', 'autopilot')
+        
+        # spawn the cars and set their autopilot and light states all together
+        batch.append(spawn_actor(blueprint, transform).then(set_autopilot(future_actor, True, traffic_manager.get_port())))
+        
+    for response in client.apply_batch_sync(batch, True):
+        if response.error:
+            logging.error(response.error)
+        else:
+            vehicles_list.append(response.actor_id)
+    
+    # set automatic vehicle lights update 
+    all_vehicle_actors = client.get_world().get_actors(vehicles_list)
+    for actor in all_vehicle_actors:
+        traffic_manager.update_vehicle_lights(actor, True)
+    
+    # add dangerous driving        
+    
 # ==============================================================================
 # -- Game Loop ---------------------------------------------------------
 # ==============================================================================
@@ -782,6 +791,10 @@ def game_loop(args):
         available_maps = client.get_available_maps()
         print("Available maps: ", available_maps)
         
+        # load a map 
+        client.load_world('Town10HD')
+        
+        # traffic manager
         traffic_manager = client.get_trafficmanager()
         #TODO: understand why this is needed. seems it is not used later.
         sim_world = client.get_world()
@@ -796,6 +809,9 @@ def game_loop(args):
 
             traffic_manager.set_synchronous_mode(True)
 
+        # set up the traffic manager to introduce NPCs        
+        spawn_traffic(client, traffic_manager, 10)
+        
         # set up a display to render the game
         # pygame.HWSURFACE: hardware accelerated
         # pygame.DOUBLEBUF: use a double buffer for rendering

@@ -38,3 +38,10 @@ Carla on Windows SUCKS.
 
 -`0.9.14`: The shipped binaries from github release cannot load `Town06/06 and Town12` and maybe others. 
 It seems one has to build Carla from source to get it working according to [this](https://github.com/carla-simulator/carla/issues/6616).
+
+
+## Todos
+- [ ] set up simulation environment
+- [ ] set up lane change agent that takes prepare lane change as a state
+- [ ] set up MPC controller
+- [ ] set up RL agent
