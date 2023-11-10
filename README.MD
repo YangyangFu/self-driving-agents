@@ -41,7 +41,7 @@ It seems one has to build Carla from source to get it working according to [this
 
 
 ## Todos
-- [ ] set up simulation environment
+- [x] set up simulation environment
 - [ ] set up lane change agent that takes prepare lane change as a state
 - [ ] set up MPC controller
 - [ ] set up RL agent
