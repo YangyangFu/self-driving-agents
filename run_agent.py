@@ -796,9 +796,12 @@ def game_loop(args):
         
         # traffic manager
         traffic_manager = client.get_trafficmanager()
-        #TODO: understand why this is needed. seems it is not used later.
+        # donot simulate traffic far away from the player
+        traffic_manager.set_hybrid_physics_mode(True)
+        traffic_manager.set_hybrid_physics_radius(70.0)
+        traffic_manager.set_random_device_seed(0)
+            
         sim_world = client.get_world()
-
         # if use synchronous mode and fixed simulation time step
         # then traffic manager has to be set to synchronous mode as well
         if args.sync:
