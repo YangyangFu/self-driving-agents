@@ -17,4 +17,16 @@ world coordinate or inertial coordinate system: righ-handed coordinate system wi
 
 
 
+## Vehicle Control
+
+Consider a simple control example: given next waypoint and target velocity, and current transform of the ego vehicle, how to control the vehicle to reach the waypoint and speed?
+
+### PID Controller
+
+The simplest way is to use two PID controllers, one for steering angle and one for throttle/brake. The steering angle is calculated by the cross track error (CTE) and the target velocity is used to calculate the throttle/brake.
+
+**Steering angle PID controller**: typically known as Lateral Control.
+
+The cross track error is the distance between the vehicle and the reference trajectory. The reference trajectory is usually a polynomial function of the road centerline. 
+
 `Transform`

@@ -367,7 +367,7 @@ class BasicAgent(object):
         opposite_invasion = abs(self._offset) + self._vehicle.bounding_box.extent.y > ego_wpt.lane_width / 2
         use_bbs = self._use_bbs_detection or opposite_invasion or ego_wpt.is_junction
 
-        # Get the route bounding box
+        # Get the route bounding box of ego vehicle with a given distance e.g., 100m
         route_polygon = get_route_polygon()
 
         for target_vehicle in vehicle_list:
@@ -385,7 +385,8 @@ class BasicAgent(object):
 
                 target_bb = target_vehicle.bounding_box
                 target_vertices = target_bb.get_world_vertices(target_vehicle.get_transform())
-                target_list = [[v.x, v.y, v.z] for v in target_vertices]
+                # eight vertices of the bound box
+                target_list = [[v.x, v.y, v.z] for v in target_vertices]                
                 target_polygon = Polygon(target_list)
 
                 if route_polygon.intersects(target_polygon):
