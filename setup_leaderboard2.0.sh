@@ -3,6 +3,9 @@
 export PROJECT_PATH=$(cd `dirname $BASH_SOURCE`; pwd)
 echo ${PROJECT_PATH}
 
+# carla root
+export CARLA_ROOT=${HOME}/CARLA_Leaderboard_20
+
 # set up paths
 export LEADERBOARD_ROOT=${PROJECT_PATH}/leaderboard
 export SCENARIO_RUNNER_ROOT=${PROJECT_PATH}/scenario_runner
