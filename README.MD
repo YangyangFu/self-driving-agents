@@ -14,6 +14,44 @@ setup environment: check [this](https://leaderboard.carla.org/get_started/) out.
 conda install -c conda-forge shapely==1.7.1 numpy==1.18.4
 ```
 
+### Run Carla in Docker
+
+The followings steps are for running Carla 0.9.14 in a docker container, and connect to it using Python client in local.
+- open a terminal, and run one server using the scripts in `./run_server`.
+  ```bash
+    bash ./run_server/run_carla_0.9.14.sh
+  ``` 
+- open another terminal to run a client code in local
+    ```bash
+    conda activate carla-py37
+    source setup.sh
+    python run_agent.py
+    ```
+### Run Leaderboard 2.0
+The following steps are for runing Carla Leaderboard 2.0 examples in local:
+- open a terminal, and run one server using the scripts in `./run_server`.
+  ```bash
+    source setup_leaderboard2.0.sh
+    bash ./run_server/run_carla_leaderboard2.0.sh
+  ``` 
+- open another terminal to run the client code in local
+    - activate local conda environment, e.g., 
+        ```bash
+        conda activate carla-py37
+        ```
+    - set up necessary environment variables
+        ```bash
+        source setup_leaderboard2.0.sh
+        ```
+    - run a human agent example using
+        ```bash
+        bash run_agent.sh
+        ```
+- open a third terminal to run manual control
+    ```bash
+    conda activate carla-py37
+    python ./scenario_runner/manual_control.py
+    ```
 ## Carla in Docker
 
 ### Ubuntu 20.04
