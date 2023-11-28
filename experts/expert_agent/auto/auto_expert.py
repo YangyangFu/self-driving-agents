@@ -64,6 +64,7 @@ class Auto_Agent(AutonomousAgent):
 
         control, obs_actor, light_actor, walker = self._agent.run_step()
 
+        # get sensor data 
         _, rgb = input_data.get('RGB')
         _, sem = input_data.get('SEM')
         _, ego = input_data.get('EGO')
@@ -119,14 +120,15 @@ class Auto_Agent(AutonomousAgent):
         self._agent = BasicAgent(self._vehicle)
         
         plan = []
-        prev_wp = None
-        for i in self.route_file:
-            wp = CarlaDataProvider.get_map().get_waypoint(carla.Location(x=i[0],y=i[1],z=i[2]))
-            if prev_wp:
-                plan.extend(self._agent.trace_route(prev_wp, wp))
-            prev_wp = wp
+        for transform, roadoption in self.origin_global_plan_world_coord:
+            wp = CarlaDataProvider.get_map().get_waypoint(transform.location)
+            plan.append((wp, roadoption))
 
         self._agent.set_global_plan(plan)
+
+        if self.config.debug_print:
+            for i, point in enumerate(plan):
+                self._world.debug.draw_string(point, str(i), life_time=999, color=carla.Color(0,0,255))
 
     def change_weather(self):
         # TODO

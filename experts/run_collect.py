@@ -26,7 +26,7 @@ def main(args):
     if 'data_save' in args.agent_config:
         args.agent_config.data_save = os.path.join(args.absolute_path, args.agent_config.data_save)
     # for multi carla
-    args.trafficManagerPort = args.port + 6000
+    args.traffic_manager_port = args.port + 6000
     # =============> 
 
     # start CARLA
@@ -34,24 +34,9 @@ def main(args):
     server_manager.start()
 
     print('-'*20 + "TEST Agent: " + bc.OKGREEN + args.agent.split('/')[-1] + bc.ENDC + '-'*20)
-    args.agent = os.path.join(args.absolute_path, args.agent)
-    route_name = args.routes.split('/')[-1].split('.')[0]
-    args.checkpoint = args.agent.split('/')[-1].split('.')[0] + '.json'
 
-    # make sure that folder is exist
-    data_folder = os.path.join(args.absolute_path,'data/results')
-    Path(data_folder).mkdir(exist_ok=True, parents=True)
-    args.checkpoint = os.path.join(data_folder,f'{route_name}_{args.checkpoint}')
-
-    if os.path.exists(args.checkpoint) and not args.resume:
-        print(f"It will overwrite the things! {bc.WARNING}ATTENTION {args.checkpoint}{bc.ENDC}")
-    elif args.resume:
-        print(f"{bc.UNDERLINE}Contiune the route from file{bc.ENDC}: {args.checkpoint}")
-    else:
-        print(f"Create the result to: {args.checkpoint}")
-        
     # run official leaderboard ====>
-    leaderboard_evaluator = LeaderboardEvaluator(args, StatisticsManager())
+    leaderboard_evaluator = LeaderboardEvaluator(args, StatisticsManager(args.checkpoint, args.debug_checkpoint))
     leaderboard_evaluator.run(args)
     # run official leaderboard ====>
     

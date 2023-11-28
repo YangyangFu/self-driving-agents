@@ -95,7 +95,7 @@ class GlobalRoutePlanner(object):
         """
         self._topology = []
         # Retrieving waypoints to construct a detailed topology
-        for segment in self._wmap.get_topology():
+        for segment in self._wmap.get_topology(): # segment is a tuple of 2 waypoints
             wp1, wp2 = segment[0], segment[1]
             l1, l2 = wp1.transform.location, wp2.transform.location
             # Rounding off to avoid floating point imprecision
@@ -110,9 +110,15 @@ class GlobalRoutePlanner(object):
                 w = wp1.next(self._sampling_resolution)[0]
                 while w.transform.location.distance(endloc) > self._sampling_resolution:
                     seg_dict['path'].append(w)
-                    w = w.next(self._sampling_resolution)[0]
+                    next_ws = w.next(self._sampling_resolution)
+                    if len(next_ws) == 0:
+                        break
+                    w = next_ws[0]
             else:
-                seg_dict['path'].append(wp1.next(self._sampling_resolution)[0])
+                next_wps = wp1.next(self._sampling_resolution)
+                if len(next_wps) == 0:
+                    continue
+                seg_dict['path'].append(next_wps[0])
             self._topology.append(seg_dict)
 
     def _build_graph(self):
@@ -167,6 +173,7 @@ class GlobalRoutePlanner(object):
                     [entry_carla_vector.x, entry_carla_vector.y, entry_carla_vector.z]),
                 exit_vector=np.array(
                     [exit_carla_vector.x, exit_carla_vector.y, exit_carla_vector.z]),
+                # unit vector from entry to exit
                 net_vector=vector(entry_wp.transform.location, exit_wp.transform.location),
                 intersection=intersection, type=RoadOption.LANEFOLLOW)
 

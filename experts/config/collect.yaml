@@ -1,17 +1,18 @@
 # please remember to change this!!! TODO or will change by modi
-absolute_path: '/home/kin/workspace/carla-expert'
-carla_sh_path: '/home/kin/CARLA_0.9.10.1/CarlaUE4.sh'
+absolute_path: '/home/yyf/github/carla-remote-server'
+carla_sh_path: '/home/yyf/CARLA_Leaderboard_20/CarlaUE4.sh'
 
 host: 'localhost'
 port: 2000
-trafficManagerPort: 0
+traffic_manager_port: 0
 record: ''
 repetitions: 1
 resume: False
-checkpoint: None
+checkpoint: 'results/results.json'
+debug_checkpoint: 'results/results_debug.txt'
 
 # Seed used by the TrafficManager (default: 0)
-trafficManagerSeed: 0
+traffic_manager_seed: 0
 timeout: 20000
 no_rendering: False
 
@@ -22,22 +23,25 @@ debug: False
 # routes: 'leaderboard/data/only_one_town.xml'
 # scenarios: 'leaderboard/data/all_towns_traffic_scenarios_public.json'
 
-routes: 'leaderboard/data/longest6_complete.xml'
+#routes: 'leaderboard/data/longest6_complete.xml'
+routes: 'leaderboard/data/routes_devtest.xml'
+routes_subset: ''
+scenarios: ''
 # routes: 'leaderboard/data/longest6_shortxml'
-scenarios: 'leaderboard/data/longest6.json'
+#scenarios: 'leaderboard/data/longest6.json'
 
 # ====================== Agent ========================= #
-track: 'MAP' # 'SENSORS'
-# agent: 'team_code/expert_agent/MMFN/mmfn_expert.py'
+track: 'MAP' # 'MAP' or 'SENSORS'
+# agent: 'experts//expert_agent/MMFN/mmfn_expert.py'
 # defaults:
 #   - agent_config: mmfn
-# agent: 'team_code/expert_agent/SEED/seed_expert.py'
-# defaults:
-#   - agent_config: seed
-# agent: 'team_code/expert_agent/roach/rl_agent.py'
+#agent: 'experts/expert_agent/SEED/seed_expert.py'
+#defaults:
+#  - agent_config: seed
+# agent: 'experts//expert_agent/roach/rl_agent.py'
 # defaults:
 #   - agent_config: roach
-agent: 'team_code/expert_agent/auto/auto_expert.py'
+agent: 'experts/expert_agent/auto/auto_expert.py'
 defaults:
-  - agent_config: mmfn
+  - agent_config: auto
 
