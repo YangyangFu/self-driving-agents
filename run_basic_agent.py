@@ -794,6 +794,11 @@ def game_loop(args):
         # load a map 
         client.load_world('Town10HD')
         
+        # start a recorder
+        if args.enable_recording:   
+            print("Recording on file: %s" % client.start_recorder(args.recorder_filename))
+
+
         # traffic manager
         traffic_manager = client.get_trafficmanager()
         # donot simulate traffic far away from the player
@@ -905,6 +910,10 @@ def game_loop(args):
 
             world.destroy()
 
+            if args.enable_recording:
+                print("Stop recording")
+                client.stop_recorder()
+            
         pygame.quit()
 
 
@@ -979,7 +988,16 @@ def main():
         help='Set seed for repeating executions (default: None)',
         default=None,
         type=int)
-
+    argparser.add_argument(
+        '--enable_recording',
+        action='store_true',
+        default=False,
+        help='Enable recording of the simulation')
+    argparser.add_argument(
+        '--recorder_filename',
+        help='Set a filename for saving the recorder file',
+        default='/mnt/shared/recording.log')
+    
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]
