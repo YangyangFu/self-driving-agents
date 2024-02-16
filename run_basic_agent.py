@@ -138,13 +138,13 @@ class World(object):
         # on_tick is used in async mode: it start callbacks from the client for the callback function as defined, and return the ID of callback
         # the callback function is called when the server ticks.
         self.world.on_tick(hud.on_world_tick)
-        self.recording_enabled = False
+        self.recording_enabled = False # this seems not working
         self.recording_start = 0
 
     def restart(self, args):
         """Restart the world"""
         # Keep same camera config if the camera manager exists.
-        cam_index = self.camera_manager.index if self.camera_manager is not None else 0
+        cam_index = self.camera_manager.index if self.camera_manager is not None else 5 # initialize a camera sensor from the list
         cam_pos_id = self.camera_manager.transform_index if self.camera_manager is not None else 0
 
         # Spawn a player
@@ -598,7 +598,7 @@ class CameraManager(object):
         self.surface = None
         self._parent = parent_actor
         self.hud = hud
-        self.recording = False
+        self.recording = True
         bound_x = 0.5 + self._parent.bounding_box.extent.x
         bound_y = 0.5 + self._parent.bounding_box.extent.y
         bound_z = 0.5 + self._parent.bounding_box.extent.z
