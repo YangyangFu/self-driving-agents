@@ -5,7 +5,8 @@ pygame
 matplotlib
 open3d
 Pillow
-carla
+carla==0.9.14
+shapely 
 
 # expert agents
 scipy
