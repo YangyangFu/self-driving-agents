@@ -3,6 +3,7 @@
 
 ## Physics Modeling
 
+### Coordinates
 Three coordinates in Carla:
 - world/map coordinates
 - sensor coordinates
@@ -15,6 +16,14 @@ world coordinate or inertial coordinate system: righ-handed coordinate system wi
   - pitch: rotation around y-axis, positive direction is using the right hand thumb point to the positive y-axis, and the curling fingers point to the positive rotation direction
   - roll: rotation around x-axis, positive direction is using the right hand thumb point to the positive x-axis, and the curling fingers point to the positive rotation direction
 
+
+### Waypoints
+
+Some questions to help understand waypoint, and why can it be used for planning:
+
+- waypoint is at the center line of a lane?
+- `waypoint.transform()` is a global transform in terms of UE world?
+- `waypoint.next(distance)` method returns a list of waypoints at a distance from the current one. So the last element of the list has a specified distance from the current one. What are the elements in the middle of the list?
 
 
 ## Vehicle Control
