@@ -144,8 +144,8 @@ class World(object):
     def restart(self, args):
         """Restart the world"""
         # Keep same camera config if the camera manager exists.
-        cam_index = self.camera_manager.index if self.camera_manager is not None else 5 # initialize a camera sensor from the list
-        cam_pos_id = self.camera_manager.transform_index if self.camera_manager is not None else 0
+        cam_index = self.camera_manager.index if self.camera_manager is not None else 0 # initialize a camera sensor from the list
+        cam_pos_id = self.camera_manager.transform_index if self.camera_manager is not None else 5
 
         # Spawn a player
         #lueprints_vehicle = get_actor_blueprints(self.world, self._vehicle_filter, self._actor_generation)
@@ -608,7 +608,8 @@ class CameraManager(object):
             (carla.Transform(carla.Location(x=+0.8*bound_x, y=+0.0*bound_y, z=1.3*bound_z)), attachment.Rigid),
             (carla.Transform(carla.Location(x=+1.9*bound_x, y=+1.0*bound_y, z=1.2*bound_z)), attachment.SpringArmGhost),
             (carla.Transform(carla.Location(x=-2.8*bound_x, y=+0.0*bound_y, z=4.6*bound_z), carla.Rotation(pitch=6.0)), attachment.SpringArmGhost),
-            (carla.Transform(carla.Location(x=-1.0, y=-1.0*bound_y, z=0.4*bound_z)), attachment.Rigid)]
+            (carla.Transform(carla.Location(x=-1.0, y=-1.0*bound_y, z=0.4*bound_z)), attachment.Rigid),
+            (carla.Transform(carla.Location(x=+0.0*bound_x, y=+0.0*bound_y, z=1.5*bound_z)), attachment.Rigid)]
 
         self.transform_index = 1
         self.sensors = [
@@ -659,6 +660,11 @@ class CameraManager(object):
         if notify:
             self.hud.notification(self.sensors[index][2])
         self.index = index
+
+        # print some setup info
+        print("Camera setup: ", self.sensors[index][2])
+        print("Camera transform: ", self._camera_transforms[self.transform_index][0])
+
 
     def next_sensor(self):
         """Get the next sensor"""
@@ -986,7 +992,7 @@ def main():
     argparser.add_argument(
         '-s', '--seed',
         help='Set seed for repeating executions (default: None)',
-        default=None,
+        default=2023,
         type=int)
     argparser.add_argument(
         '--enable_recording',
