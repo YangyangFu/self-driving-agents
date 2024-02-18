@@ -21,9 +21,20 @@ world coordinate or inertial coordinate system: righ-handed coordinate system wi
 
 Some questions to help understand waypoint, and why can it be used for planning:
 
-- waypoint is at the center line of a lane?
-- `waypoint.transform()` is a global transform in terms of UE world?
-- `waypoint.next(distance)` method returns a list of waypoints at a distance from the current one. So the last element of the list has a specified distance from the current one. What are the elements in the middle of the list?
+- **waypoint is at the center line of a lane?**
+
+Yes. the waypoint is obtained from the center of the nearest lane.
+
+- **`waypoint.transform()` is a global transform in terms of UE world?**
+
+The transform should be in global frame.
+
+- **`waypoint.next(distance)` method returns a list of waypoints at a distance from the current one. So the last element of the list has a specified distance from the current one. What are the elements in the middle of the list?**
+
+  `waypoint.next(distance)` returns a list of waypoints at a given distance from the current location by taking into considerations the road and its possible deviaions without performing lane change and returns one waypoint per option. Treat the current location as a circle center, and the distance as a radius. Any waypoints on the permeterier but without lane change operations needed will be returned. For example, if the current waypoint is at a right lane, and there are two options to move forward: (go straight or turn right), this will generate two waypoints for the next move. 
+
+  Also note the distance is not the Euclean distance but the ditance along the route.
+
 
 
 ## Vehicle Control
