@@ -709,11 +709,7 @@ def draw_waypoints(world, waypoint, depth=6):
     if depth < 0:
         return
     for w in waypoint.next(4.0):
-        t = w.transform
-        begin = t.location + carla.Location(z=0.5)
-        angle = math.radians(t.rotation.yaw)
-        end = begin + carla.Location(x=math.cos(angle), y=math.sin(angle))
-        world.debug.draw_arrow(begin, end, arrow_size=0.3, life_time=1.0)
+        world.debug.draw_point(w.transform.location, size=0.1, life_time=1.0)
         draw_waypoints(world, w, depth - 1)
 
 # ==============================================================================
