@@ -236,7 +236,12 @@ class PIDLateralController():
             _dot = 1
         else:
             _dot = math.acos(np.clip(np.dot(w_vec, v_vec) / (wv_linalg), -1.0, 1.0))
+        # check the direction of angle between v_vec and w_vec
+        # if positive, then steering is to the left of the waypoint
+        # based on the right hand rule, if the v_vec is pointing to the right of the w_vec, 
+        # then the angle from v_vec to w_vec is (0, pi), else (pi, 2*pi)
         _cross = np.cross(v_vec, w_vec)
+        # if more than pi, then reverse action is needed.
         if _cross[2] < 0:
             _dot *= -1.0
 
@@ -256,3 +261,10 @@ class PIDLateralController():
         self._k_i = K_I
         self._k_d = K_D
         self._dt = dt
+
+    
+    def debug_plot(self):
+        """
+        Debug plot for the lateral controller
+        """
+        
