@@ -1,0 +1,3 @@
+-Download the binary distribution from github
+-Replace the packaged Dockerfile if it does not work by the one provided here
+-Build a docker image for serving

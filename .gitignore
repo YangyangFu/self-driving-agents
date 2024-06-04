@@ -4,9 +4,6 @@
 
 *_out
 
-# carla dist
-carla
-
 # ignore leaderboard changes
 leaderboard
 scenario_runner
