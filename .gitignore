@@ -3,3 +3,10 @@
 *__pycache__/
 
 *_out
+
+# carla dist
+carla
+
+# ignore leaderboard changes
+leaderboard
+scenario_runner
