@@ -18,7 +18,7 @@ import os
 import lmdb
 import datetime
 import numpy as np
-from utils import bcolors as bc
+from experts.utils.utils import bcolors as bc
 
 def get_entry_point():
     return 'Auto_Agent'
@@ -36,7 +36,7 @@ class Auto_Agent(AutonomousAgent):
         self.num_frames = 0
         self.stop_counter = 0
         self.config = config
-        self.route_file = self.config.route_file
+        #self.route_file = self.config.route_file
         self.rgbs, self.sems, self.info, self.brak = [], [], [], []
 
     def sensors(self):
@@ -46,8 +46,8 @@ class Auto_Agent(AutonomousAgent):
         sensors = [
             {'type': 'sensor.camera.rgb', 'x': 1.5, 'y': 0.0, 'z': 2.4, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
              'width': camera_w, 'height': camera_h, 'fov': fov, 'id': 'RGB'},
-            {'type': 'sensor.camera.semantic_segmentation', 'x': 1.5, 'y': 0.0, 'z': 2.4,  'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'width': camera_w, 'height': camera_h, 'fov': fov, 'id': 'SEM'},
+#            {'type': 'sensor.camera.semantic_segmentation', 'x': 1.5, 'y': 0.0, 'z': 2.4,  'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+#            'width': camera_w, 'height': camera_h, 'fov': fov, 'id': 'SEM'},
             {'type': 'sensor.speedometer', 'id': 'EGO'},
         ]
         return sensors
@@ -66,7 +66,7 @@ class Auto_Agent(AutonomousAgent):
 
         # get sensor data 
         _, rgb = input_data.get('RGB')
-        _, sem = input_data.get('SEM')
+    #    _, sem = input_data.get('SEM')
         _, ego = input_data.get('EGO')
         spd = ego.get('speed')
 
@@ -80,7 +80,7 @@ class Auto_Agent(AutonomousAgent):
             vel = get_speed(self._vehicle)/3.6 #  m/s
             is_junction = self._map.get_waypoint(self._vehicle.get_transform().location).is_junction
             self.rgbs.append(rgb[...,:3])
-            self.sems.append(sem[...,2,])
+    #        self.sems.append(sem[...,2,])
             self.info.append([vel, is_junction, self.config.weather_change])
 
             # change weather
@@ -160,13 +160,13 @@ class Auto_Agent(AutonomousAgent):
                     np.ascontiguousarray(self.rgbs[i]).astype(np.uint8)
                 )
 
-                txn.put(
-                    f'sems_{i:05d}'.encode(),
-                    np.ascontiguousarray(self.sems[i]).astype(np.uint8)
-                )
+#                txn.put(
+#                    f'sems_{i:05d}'.encode(),
+#                    np.ascontiguousarray(self.sems[i]).astype(np.uint8)
+#                )
 
         self.rgbs.clear()
-        self.sems.clear()
+#        self.sems.clear()
         self.info.clear()
         lmdb_env.close()
 

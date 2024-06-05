@@ -7,14 +7,14 @@ export EXPERTS_ROOT=experts
 export PYTHONPATH=$PYTHONPATH:${LEADERBOARD_ROOT}:${SCENARIO_RUNNER_ROOT}:${EXPERTS_ROOT}
 
 export CHALLENGE_TRACK_CODENAME=SENSORS
-export ROUTES=${LEADERBOARD_ROOT}/data/routes_training.xml
+export ROUTES=${LEADERBOARD_ROOT}/data/routes_devtest.xml
 export ROUTES_SUBSET=0
-export TEAM_AGENT=${LEADERBOARD_ROOT}/leaderboard/autoagents/human_agent.py # agent code
+export TEAM_AGENT=${LEADERBOARD_ROOT}/leaderboard/autoagents/npc_agent.py #npc_agent.py # agent code
 export TEAM_CONFIG= 
 export CHECKPOINT_ENDPOINT=_result.json # results file
 export DEBUG_CHECKPOINT_ENDPOINT=_debug_result.json # debug results file
 export SAVE_PATH=data/eval # path for saving episodes while evaluating
-export RESUME=True
+#export RESUME=False 
 
 export DEBUG_CHALLENGE=0
 export REPETITIONS=1 # multiple evaluation runs
