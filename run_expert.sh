@@ -21,17 +21,17 @@ export REPETITIONS=1 # multiple evaluation runs
 export PORT=2000 # same as the carla server port
 export TM_PORT=2500 # port for traffic manager, required when spawning multiple servers/clients
 
-python ${LEADERBOARD_ROOT}/leaderboard/leaderboard_evaluator.py \
---routes=${ROUTES} \
---routes-subset=${ROUTES_SUBSET} \
---repetitions=${REPETITIONS} \
---track=${CHALLENGE_TRACK_CODENAME} \
---checkpoint=${CHECKPOINT_ENDPOINT} \
---debug-checkpoint=${DEBUG_CHECKPOINT_ENDPOINT} \
---agent=${TEAM_AGENT} \
---agent-config=${TEAM_CONFIG} \
---debug=${DEBUG_CHALLENGE} \
---record=${RECORD_PATH} \
---resume=${RESUME} \
---port=${PORT} \
---traffic-manager-port=${TM_PORT}
+python ${EXPERTS_ROOT}/run_experiment.py \
+#--routes=${ROUTES} \
+#--routes-subset=${ROUTES_SUBSET} \
+#--repetitions=${REPETITIONS} \
+#--track=${CHALLENGE_TRACK_CODENAME} \
+#--checkpoint=${CHECKPOINT_ENDPOINT} \
+#--debug-checkpoint=${DEBUG_CHECKPOINT_ENDPOINT} \
+#--agent=${TEAM_AGENT} \
+#--agent-config=${TEAM_CONFIG} \
+#--debug=${DEBUG_CHALLENGE} \
+#--record=${RECORD_PATH} \
+#--resume=${RESUME} \
+#--port=${PORT} \
+#--traffic-manager-port=${TM_PORT}

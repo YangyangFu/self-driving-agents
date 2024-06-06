@@ -12,7 +12,6 @@ debug_print: False # pls remember to set False when collect data
 image_height: 288
 image_width: 1024
 slow_distance: 15
-route_id: None
 counter_destory: 200
 max_speed: 30 # km/h
 slow_speed: 10 # km/h
@@ -20,3 +19,4 @@ max_throttle: 0.6
 frame_record: 2
 wandb_mode: "online"
 route_file: None
+route_id: None

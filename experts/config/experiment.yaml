@@ -1,0 +1,29 @@
+# path config
+absolute_path: '/home/yyf/github/self-driving-agents'
+
+# general experiment
+track: 'MAP' # 'MAP' or 'SENSORS'
+repetitions: 1
+resume: False
+checkpoint: '_results.json'
+debug_checkpoint: '_results_debug.txt'
+
+# carla client/server
+host: 'localhost'
+port: 2000
+traffic_manager_port: 0
+traffic_manager_seed: 0
+timeout: 600
+no_rendering: False
+record: ''
+debug: False
+
+# routes
+routes: 'leaderboard/data/routes_devtest.xml'
+routes_subset: '1'
+
+# agents
+agent: 'experts/agents/auto/auto_expert.py'
+defaults:
+  - agent_config: auto
+

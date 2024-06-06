@@ -36,8 +36,7 @@ class Auto_Agent(AutonomousAgent):
         self.num_frames = 0
         self.stop_counter = 0
         self.config = config
-        #self.route_file = self.config.route_file
-        self.rgbs, self.sems, self.info, self.brak = [], [], [], []
+        self.rgbs, self.info, self.brak = [], [], []
 
     def sensors(self):
         camera_w = 1024
@@ -137,7 +136,7 @@ class Auto_Agent(AutonomousAgent):
     def flush_data(self):
         # Save data
         now = datetime.datetime.now()
-        folder_name = f'rid_{self.config.route_id:02d}_'
+        folder_name = f'rid_{int(self.config.route_id):02d}_'
         time_now = '_'.join(map(lambda x: '%02d' % x, (now.month, now.day, now.hour, now.minute, now.second)))
         data_path = os.path.join(self.config.data_save, folder_name+time_now)
 

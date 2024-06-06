@@ -6,42 +6,62 @@
 """
 from leaderboard.leaderboard_evaluator import LeaderboardEvaluator
 from leaderboard.utils.statistics_manager import StatisticsManager
-from utils import bcolors as bc
-from utils import CarlaServerManager
+from experts.utils.utils import bcolors as bc
+from experts.utils.utils import CarlaServerManager
 import hydra
-import sys, os
-import datetime, time
+import os, sys
+import time
 import gc
-from pathlib import Path
 import logging
-import subprocess
+
 log = logging.getLogger(__name__)
+
+"""
+TODO: redesign the configuration files
+@dataclass
+class BaseSensorConfig:
+    pass 
+class CameraConfig(BaseSensorConfig):
+    pass 
+class LidarConfig(BaseSensorConfig):
+    pass 
+
+@dataclass
+class BaseAgentConfig:
+    pass 
+
+class AutoAgentConfig(BaseAgentConfig):
+    pass
+"""
 
 @hydra.main(config_path="config", config_name="collect")
 def main(args):
-    # config init =============> make all path with absolute
-    args.scenarios = os.path.join(args.absolute_path,args.scenarios)
-    args.routes    = os.path.join(args.absolute_path,args.routes)
+    # config init
+    args.routes    = os.path.join(args.absolute_path, args.routes)
     args.agent     = os.path.join(args.absolute_path, args.agent)
+    
     if 'data_save' in args.agent_config:
         args.agent_config.data_save = os.path.join(args.absolute_path, args.agent_config.data_save)
+        
     # for multi carla
     args.traffic_manager_port = args.port + 6000
-    # =============> 
 
+    # shared paremeters
+    args.agent_config.route_id = args.routes_subset
+    
     # start CARLA
-    server_manager = CarlaServerManager(args.carla_sh_path, port=args.port)
-    server_manager.start()
-
     print('-'*20 + "TEST Agent: " + bc.OKGREEN + args.agent.split('/')[-1] + bc.ENDC + '-'*20)
 
     # run official leaderboard ====>
-    leaderboard_evaluator = LeaderboardEvaluator(args, StatisticsManager(args.checkpoint, args.debug_checkpoint))
-    leaderboard_evaluator.run(args)
-    # run official leaderboard ====>
-    
-    # kill CARLA
-    # server_manager.stop()
+    statistics_manager = StatisticsManager(args.checkpoint, args.debug_checkpoint)
+    leaderboard_evaluator = LeaderboardEvaluator(args, statistics_manager)
+    crashed = leaderboard_evaluator.run(args)
+    del leaderboard_evaluator
+
+    if crashed:
+        sys.exit(-1)
+    else:
+        sys.exit(0)
 
 if __name__ == '__main__':
     
