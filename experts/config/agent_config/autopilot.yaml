@@ -1,0 +1,10 @@
+data_save: data/autopilot
+debug_print: False #
+route_file: None
+route_id: None
+
+waypoint_disturb: 0
+waypoint_disturb_seed: 2024
+destory_hazard_actors: True
+
+birdview_cache_dir: './'

@@ -12,3 +12,4 @@ scenario_runner
 outputs
 checkpoints
 data
+*cache

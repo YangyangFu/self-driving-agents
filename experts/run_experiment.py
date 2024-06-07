@@ -9,6 +9,8 @@ from leaderboard.utils.statistics_manager import StatisticsManager
 from experts.utils.utils import bcolors as bc
 from experts.utils.utils import CarlaServerManager
 import hydra
+from hydra.utils import get_original_cwd, to_absolute_path
+
 import os, sys
 import time
 import gc
@@ -34,7 +36,7 @@ class AutoAgentConfig(BaseAgentConfig):
     pass
 """
 
-@hydra.main(config_path="config", config_name="collect")
+@hydra.main(config_path="config", config_name="experiment")
 def main(args):
     # config init
     args.routes    = os.path.join(args.absolute_path, args.routes)
@@ -48,6 +50,10 @@ def main(args):
 
     # shared paremeters
     args.agent_config.route_id = args.routes_subset
+    
+    # for autopilot:
+    if hasattr(args.agent_config, 'birdview_cache_dir'):
+        args.agent_config.birdview_cache_dir = to_absolute_path(args.agent_config.birdview_cache_dir)
     
     # start CARLA
     print('-'*20 + "TEST Agent: " + bc.OKGREEN + args.agent.split('/')[-1] + bc.ENDC + '-'*20)

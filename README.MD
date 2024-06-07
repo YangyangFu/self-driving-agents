@@ -78,6 +78,11 @@ Carla on Windows SUCKS.
 It seems one has to build Carla from source to get it working according to [this](https://github.com/carla-simulator/carla/issues/6616).
 
 
+## SETUP
+- if needed, `carla_birdeye_view` library is outdated.
+  - the map name in Carla 0.9.1 has changed to `Carla/Maps/TownXX/TownXX` instead of `TownXX` (as programmed). The map name in `parametrized_cache_path()` should be updated so that this can be taken care of.
+
+
 ## Todos
 - [x] set up simulation environment
 - [ ] set up lane change agent that takes prepare lane change as a state
