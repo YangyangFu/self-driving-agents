@@ -8,6 +8,8 @@ This module provides an NPC agent to control the ego vehicle
 """
 
 from __future__ import print_function
+from PIL import Image
+import pathlib 
 
 import carla
 from lib.basic_agent import BasicAgent
@@ -21,32 +23,41 @@ import numpy as np
 from experts.utils.utils import bcolors as bc
 
 def get_entry_point():
-    return 'Auto_Agent'
+    return 'AutoAgent'
 
-class Auto_Agent(AutonomousAgent):
+class AutoAgent(AutonomousAgent):
 
     def set_global_plan(self, global_plan_gps, global_plan_world_coord):
         self.origin_global_plan_world_coord = [(global_plan_world_coord[x][0], global_plan_world_coord[x][1]) for x in range(len(global_plan_world_coord))]
         super().set_global_plan(global_plan_gps, global_plan_world_coord)
 
     def setup(self, config):
-        self.track = Track.MAP
+        #super().setup(config)
+        self.track = Track.SENSORS
         self._route_assigned = False
         self._agent = None
         self.num_frames = 0
         self.stop_counter = 0
         self.config = config
-        self.rgbs, self.info, self.brak = [], [], []
+        self.rgbs, self.sems, self.info, self.brak = [], [], [], []
 
+        self._sensor_data = {"width": 400, "height": 300, "fov": 100}
+        self._rgb_sensor_data = {"width": 800, "height": 600, "fov": 100}
+        
+        # data path 
+        now = datetime.datetime.now()
+        folder_name = f'rid_{int(self.config.route_id):02d}_'
+        time_now = '_'.join(map(lambda x: '%02d' % x, (now.month, now.day, now.hour, now.minute, now.second)))
+        self.data_save = pathlib.Path(self.config.data_save)/(folder_name+time_now)
+        (self.data_save / "rgb").mkdir(parents=True, exist_ok=True)
+        (self.data_save / "sem").mkdir(parents=True, exist_ok=True)
+        
     def sensors(self):
-        camera_w = 1024
-        camera_h = 288
-        fov = 100
         sensors = [
             {'type': 'sensor.camera.rgb', 'x': 1.5, 'y': 0.0, 'z': 2.4, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-             'width': camera_w, 'height': camera_h, 'fov': fov, 'id': 'RGB'},
-#            {'type': 'sensor.camera.semantic_segmentation', 'x': 1.5, 'y': 0.0, 'z': 2.4,  'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-#            'width': camera_w, 'height': camera_h, 'fov': fov, 'id': 'SEM'},
+             'width': self._rgb_sensor_data['width'], 'height': self._rgb_sensor_data['height'], 'fov': self._rgb_sensor_data['fov'], 'id': 'RGB'},
+            {'type': 'sensor.camera.semantic_segmentation', 'x': 1.5, 'y': 0.0, 'z': 2.4,  'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+            'width': self._rgb_sensor_data['width'], 'height': self._rgb_sensor_data['height'], 'fov': self._rgb_sensor_data['fov'], 'id': 'SEM'},
             {'type': 'sensor.speedometer', 'id': 'EGO'},
         ]
         return sensors
@@ -65,7 +76,7 @@ class Auto_Agent(AutonomousAgent):
 
         # get sensor data 
         _, rgb = input_data.get('RGB')
-    #    _, sem = input_data.get('SEM')
+        _, sem = input_data.get('SEM')
         _, ego = input_data.get('EGO')
         spd = ego.get('speed')
 
@@ -79,15 +90,16 @@ class Auto_Agent(AutonomousAgent):
             vel = get_speed(self._vehicle)/3.6 #  m/s
             is_junction = self._map.get_waypoint(self._vehicle.get_transform().location).is_junction
             self.rgbs.append(rgb[...,:3])
-    #        self.sems.append(sem[...,2,])
+            self.sems.append(sem[...,2,])
             self.info.append([vel, is_junction, self.config.weather_change])
 
+            # save data
+            self.save_data(input_data)
+            
             # change weather
             if not self.config.debug_print and self.num_frames % 50 == 0:
                 self.change_weather()
-            if len(self.rgbs)>self.config.num_per_flush:
-                self.flush_data()
-
+                
         self.num_frames += 1
         if self.stop_counter>500:
             self.force_destory_actor(obs_actor, light_actor, walker)
@@ -133,6 +145,23 @@ class Auto_Agent(AutonomousAgent):
         # TODO
         return
 
+    def save_data(self, input_data):
+        _, rgb = input_data.get('RGB')
+        _, sem = input_data.get('SEM')
+        
+        rgb = rgb[...,:3]
+        sem = sem[...,2,]
+        
+        # save to folder
+        Image.fromarray(rgb).save(
+            self.data_save/"rgb"/("%04d.jpg" % self.num_frames)
+        )
+        
+        Image.fromarray(sem).save(
+            self.data_save/"sem"/("%04d.jpg" % self.num_frames)
+        )
+        
+        
     def flush_data(self):
         # Save data
         now = datetime.datetime.now()
@@ -159,13 +188,13 @@ class Auto_Agent(AutonomousAgent):
                     np.ascontiguousarray(self.rgbs[i]).astype(np.uint8)
                 )
 
-#                txn.put(
-#                    f'sems_{i:05d}'.encode(),
-#                    np.ascontiguousarray(self.sems[i]).astype(np.uint8)
-#                )
+                txn.put(
+                    f'sems_{i:05d}'.encode(),
+                    np.ascontiguousarray(self.sems[i]).astype(np.uint8)
+                )
 
         self.rgbs.clear()
-#        self.sems.clear()
+        self.sems.clear()
         self.info.clear()
         lmdb_env.close()
 

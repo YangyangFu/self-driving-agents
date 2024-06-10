@@ -23,7 +23,7 @@ routes: 'leaderboard/data/routes_devtest.xml'
 routes_subset: '1'
 
 # agents
-agent: 'experts/agents/autopilot/auto_pilot.py'
+agent: 'experts/agents/auto/auto_expert.py'
 defaults:
-  - agent_config: autopilot
+  - agent_config: auto
 
