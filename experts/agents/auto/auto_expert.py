@@ -161,47 +161,12 @@ class AutoAgent(AutonomousAgent):
             self.data_save/"sem"/("%04d.jpg" % self.num_frames)
         )
         
-        
-    def flush_data(self):
-        # Save data
-        now = datetime.datetime.now()
-        folder_name = f'rid_{int(self.config.route_id):02d}_'
-        time_now = '_'.join(map(lambda x: '%02d' % x, (now.month, now.day, now.hour, now.minute, now.second)))
-        data_path = os.path.join(self.config.data_save, folder_name+time_now)
-
-        if not os.path.exists(data_path):
-            os.makedirs(data_path)
-            print ('======> Saving to {}'.format(data_path))
-
-        lmdb_env = lmdb.open(data_path, map_size=int(1e10))
-        db_length = len(self.info)
-
-        with lmdb_env.begin(write=True) as txn:
-            txn.put('len'.encode(), str(db_length).encode())
-            for i in range(db_length):
-                txn.put(
-                    f'info_{i:05d}'.encode(),
-                    np.ascontiguousarray(self.info[i]).astype(np.float32),
-                )
-                txn.put(
-                    f'rgbs_{i:05d}'.encode(),
-                    np.ascontiguousarray(self.rgbs[i]).astype(np.uint8)
-                )
-
-                txn.put(
-                    f'sems_{i:05d}'.encode(),
-                    np.ascontiguousarray(self.sems[i]).astype(np.uint8)
-                )
-
-        self.rgbs.clear()
-        self.sems.clear()
-        self.info.clear()
-        lmdb_env.close()
-
-        return
-
     def destroy(self):
         if len(self.rgbs) == 0:
             return
-
-        self.flush_data()
+        
+        self.rgbs.clear()
+        self.sems.clear()
+        self.info.clear()
+        
+        return
