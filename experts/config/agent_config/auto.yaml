@@ -1,3 +1,7 @@
+# shared parameter from experiment
+routes: None
+routes_subset: None
+
 # output 
 save_output: True
 output_dir: data/auto

@@ -1,7 +1,11 @@
-data_save: data/autopilot
+# shared parameter from experiment
+routes: None
+routes_subset: None
+
+# agent config
+save_output: True
+output_dir: data/autopilot
 debug_print: False #
-route_file: None
-route_id: None
 
 waypoint_disturb: 0
 waypoint_disturb_seed: 2024

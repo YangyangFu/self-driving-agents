@@ -41,15 +41,18 @@ def main(args):
     # config init
     args.routes    = os.path.join(args.absolute_path, args.routes)
     args.agent     = os.path.join(args.absolute_path, args.agent)
+    args.checkpoint = os.path.join(args.absolute_path, args.checkpoint)
+    args.debug_checkpoint = os.path.join(args.absolute_path, args.debug_checkpoint)
     
-    if 'data_save' in args.agent_config:
-        args.agent_config.data_save = os.path.join(args.absolute_path, args.agent_config.data_save)
-        
     # for multi carla
     args.traffic_manager_port = args.port + 6000
 
-    # shared paremeters
-    # 
+    # shared paremeters between experiment and agent
+    args.agent_config.routes = args.routes
+    args.agent_config.routes_subset = args.routes_subset
+    
+    # ======= agent specific parameters
+    args.agent_config.output_dir = os.path.join(args.absolute_path, args.agent_config.output_dir)
     
     # for autopilot cache:
     if hasattr(args.agent_config, 'birdview_cache_dir'):

@@ -16,8 +16,6 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 
-SAVE_PATH = os.environ.get("SAVE_PATH", None)
-
 WEATHERS = {
     "ClearNoon": carla.WeatherParameters.ClearNoon,
     "ClearSunset": carla.WeatherParameters.ClearSunset,
@@ -67,9 +65,9 @@ class BaseAgent(autonomous_agent.AutonomousAgent):
 
         self.save_path = None
 
-        if SAVE_PATH is not None:
+        if self.config.save_output and self.config.output_dir is not None:
             now = datetime.datetime.now()
-            string = pathlib.Path(os.environ["ROUTES"]).stem + "_"
+            string = pathlib.Path(self.config.routes).stem + "_"
 
             if self.weather_id is None:
                 string += "_".join(
@@ -86,10 +84,11 @@ class BaseAgent(autonomous_agent.AutonomousAgent):
                         (now.month, now.day, now.hour, now.minute, now.second),
                     )
                 )
-            print(string)
-            self.save_path = pathlib.Path(os.environ["SAVE_PATH"]) / string
+            
+            self.save_path = pathlib.Path(self.config.output_dir) / string
             self.save_path.mkdir(parents=True, exist_ok=False)
-
+            print("============== saving output to", self.save_path)
+            
             for sensor in self.sensors():
                 if hasattr(sensor, "save") and sensor["save"]:
                     (self.save_path / sensor["id"]).mkdir()
