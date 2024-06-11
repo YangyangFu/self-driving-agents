@@ -46,11 +46,11 @@ class AutoAgent(AutonomousAgent):
         
         # data path 
         now = datetime.datetime.now()
-        folder_name = f'rid_{int(self.config.route_id):02d}_'
+        folder_name = ''
         time_now = '_'.join(map(lambda x: '%02d' % x, (now.month, now.day, now.hour, now.minute, now.second)))
-        self.data_save = pathlib.Path(self.config.data_save)/(folder_name+time_now)
-        (self.data_save / "rgb").mkdir(parents=True, exist_ok=True)
-        (self.data_save / "sem").mkdir(parents=True, exist_ok=True)
+        self.output_dir = pathlib.Path(self.config.output_dir)/(folder_name+time_now)
+        (self.output_dir / "rgb").mkdir(parents=True, exist_ok=True)
+        (self.output_dir / "sem").mkdir(parents=True, exist_ok=True)
         
     def sensors(self):
         sensors = [
@@ -86,7 +86,7 @@ class AutoAgent(AutonomousAgent):
             self.stop_counter = 0
 
 
-        if self.config.save_data and self.num_frames % 5 == 0 and self.stop_counter < self.config.max_stop_num:
+        if self.config.save_output and self.num_frames % 5 == 0 and self.stop_counter < self.config.max_stop_num:
             vel = get_speed(self._vehicle)/3.6 #  m/s
             is_junction = self._map.get_waypoint(self._vehicle.get_transform().location).is_junction
             self.rgbs.append(rgb[...,:3])
@@ -154,11 +154,11 @@ class AutoAgent(AutonomousAgent):
         
         # save to folder
         Image.fromarray(rgb).save(
-            self.data_save/"rgb"/("%04d.jpg" % self.num_frames)
+            self.output_dir/"rgb"/("%04d.jpg" % self.num_frames)
         )
         
         Image.fromarray(sem).save(
-            self.data_save/"sem"/("%04d.jpg" % self.num_frames)
+            self.output_dir/"sem"/("%04d.jpg" % self.num_frames)
         )
         
     def destroy(self):

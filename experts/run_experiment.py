@@ -49,9 +49,9 @@ def main(args):
     args.traffic_manager_port = args.port + 6000
 
     # shared paremeters
-    args.agent_config.route_id = args.routes_subset
+    # 
     
-    # for autopilot:
+    # for autopilot cache:
     if hasattr(args.agent_config, 'birdview_cache_dir'):
         args.agent_config.birdview_cache_dir = to_absolute_path(args.agent_config.birdview_cache_dir)
     
