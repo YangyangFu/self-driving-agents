@@ -13,3 +13,8 @@ outputs
 checkpoints
 data
 *cache
+
+# ignore logs
+experts/agents/replay/ScenarioLogs/*
+experts/agents/replay/RouteLogs/*
+experts/agents/replay/database/*
