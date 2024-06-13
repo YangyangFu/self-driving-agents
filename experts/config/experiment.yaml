@@ -28,7 +28,11 @@ repetitions: 1
 #  - agent_config: auto
 
 # auto pilot agent
-agent: 'experts/agents/autopilot/auto_pilot.py'
-defaults:
-  - agent_config: autopilot
+#agent: 'experts/agents/autopilot/auto_pilot.py'
+#defaults:
+#  - agent_config: autopilot
 
+# interfuser agent
+agent: 'experts/agents/interfuser/interfuser_agent.py'
+defaults:
+  - agent_config: interfuser

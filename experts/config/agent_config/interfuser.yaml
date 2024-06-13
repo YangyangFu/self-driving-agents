@@ -1,0 +1,7 @@
+#shared parameter from experiment
+routes: None
+routes_subset: None
+
+save_output: True
+output_dir: data/interfuser
+path_to_config: /home/yyf/github/self-driving-agents/experts/agents/interfuser/interfuser_config.py
