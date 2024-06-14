@@ -4,8 +4,8 @@ absolute_path: '/home/yyf/github/self-driving-agents'
 # general experiment
 track: 'SENSORS' # 'MAP' or 'SENSORS'
 resume: False
-checkpoint: './_results.json'
-debug_checkpoint: './_results_debug.txt'
+checkpoint: './checkpoints/_checkpoint.json'
+debug_checkpoint: '/checkpoints/_checkpoint_debug.txt'
 
 # carla client/server
 host: 'localhost'
@@ -28,7 +28,11 @@ repetitions: 1
 #  - agent_config: auto
 
 # auto pilot agent
-agent: 'experts/agents/autopilot/auto_pilot.py'
-defaults:
-  - agent_config: autopilot
+#agent: 'experts/agents/autopilot/auto_pilot.py'
+#defaults:
+#  - agent_config: autopilot
 
+# interfuser agent
+agent: 'experts/agents/interfuser/interfuser_agent.py'
+defaults:
+  - agent_config: interfuser

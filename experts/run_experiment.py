@@ -53,7 +53,9 @@ def main(args):
     
     # ======= agent specific parameters
     args.agent_config.output_dir = os.path.join(args.absolute_path, args.agent_config.output_dir)
-    
+    if args.agent_config.model_path is not None:
+        args.agent_config.model_path = os.path.join(args.absolute_path, args.agent_config.model_path)
+        
     # for autopilot cache:
     if hasattr(args.agent_config, 'birdview_cache_dir'):
         args.agent_config.birdview_cache_dir = to_absolute_path(args.agent_config.birdview_cache_dir)

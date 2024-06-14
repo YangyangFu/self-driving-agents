@@ -6,3 +6,6 @@
 	path = scenario_runner
 	url = https://github.com/carla-simulator/scenario_runner.git
 	branch = leaderboard-2.0
+[submodule "pytorch-image-models"]
+	path = pytorch-image-models
+	url = https://github.com/huggingface/pytorch-image-models.git

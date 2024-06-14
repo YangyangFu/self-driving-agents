@@ -18,3 +18,7 @@ data
 experts/agents/replay/ScenarioLogs/*
 experts/agents/replay/RouteLogs/*
 experts/agents/replay/database/*
+
+# ignore model checkpoints
+*.pth
+*.pth.tar
