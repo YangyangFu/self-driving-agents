@@ -34,55 +34,144 @@ import glob
 
 from queue import Queue, Empty
 
+from leaderboard.envs.sensor_interface import SpeedometerReader, OpenDriveMapReader
 ################### User simulation configuration ####################
 # 1) Choose the sensors
-SENSORS = [
-    [
-        'CameraTest',
-        {
-            'bp': 'sensor.camera.rgb',
-            'image_size_x': 720, 'image_size_y': 1080, 'fov': 100,
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
-        },
-    ],
-    [
-        'LidarTest',
-        {
-            'bp': 'sensor.lidar.ray_cast',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'range': 85, 'rotation_frequency': 10, 'channels': 64, 'upper_fov': 10,
-            'lower_fov': -30, 'points_per_second': 600000, 'atmosphere_attenuation_rate': 0.004,
-            'dropoff_general_rate': 0.45, 'dropoff_intensity_limit': 0.8, 'dropoff_zero_intensity': 0.4
-        }
-    ],
-    [
-        'RADARTest',
-        {
-            'bp': 'sensor.other.radar',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'points_per_second': 1500, 'range': 100
+IMG_WIDTH = 1080
+IMG_HEIGHT = 720
+def get_sensors():
+    
+    sensors = [
+        [
+            'rgb_front',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
+            },
+        ],
+        [
+            'seg_front',
+            {
+                'bp': 'sensor.camera.semantic_segmentation',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
+            },
+        ],
+        [
+            'depth_front',
+            {
+                'bp': 'sensor.camera.depth',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
+            },
+        ],
+        [
+            'rgb_rear',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': -1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 180.0
+            },
+        ],
+        [
+            'rgb_left',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': -60.0
+            },  
+        ],
+        [
+            'seg_left',
+            {
+                'bp': 'sensor.camera.semantic_segmentation',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': -60.0
+            },
+        ],
+        [
+            'depth_left',
+            {
+                'bp': 'sensor.camera.depth',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': -60.0
+            },
+        ],
+        [
+            'rgb_right',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 60.0
+            },
+        ],
+        [
+            'seg_right',
+            {
+                'bp': 'sensor.camera.semantic_segmentation',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 60.0
+            },
+            
+        ],
+        [
+            'depth_right',
+            {
+                'bp': 'sensor.camera.depth',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 60.0
+            },
+        ],
+        [
+            'lidar',
+            {
+                'bp': 'sensor.lidar.ray_cast',
+                'x': 1.3, 'y': 0.0, 'z': 2.50, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'range': 85, 'rotation_frequency': 10, 'channels': 64, 'upper_fov': 10,
+                'lower_fov': -30, 'points_per_second': 600000, 'atmosphere_attenuation_rate': 0.004,
+                'dropoff_general_rate': 0.45, 'dropoff_intensity_limit': 0.8, 'dropoff_zero_intensity': 0.4
+            }
+        ],
+        [
+            'radar',
+            {
+                'bp': 'sensor.other.radar',
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'points_per_second': 1500, 'range': 100
 
-        }
-    ],
-    [
-        'GnssTest',
-        {
-            'bp': 'sensor.other.gnss',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'noise_alt_stddev': 0.000005, 'noise_lat_stddev': 0.000005, 'noise_lon_stddev': 0.000005,
-            'noise_alt_bias': 0.0, 'noise_lat_bias': 0.0, 'noise_lon_bias': 0.0
-        }
-    ],
-    [
-        'IMUTest',
-        {
-            'bp': 'sensor.other.imu',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
-            'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
-        }
+            }
+        ],
+        [
+            'gnss',
+            {
+                'bp': 'sensor.other.gnss',
+                'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'noise_alt_stddev': 0.000005, 'noise_lat_stddev': 0.000005, 'noise_lon_stddev': 0.000005,
+                'noise_alt_bias': 0.0, 'noise_lat_bias': 0.0, 'noise_lon_bias': 0.0
+            }
+        ],
+        [
+            'imu',
+            {
+                'bp': 'sensor.other.imu',
+                'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
+                'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
+            }
+        ],
+        #[
+        #    'speed',
+        #    {
+        #        "bp": "sensor.speedometer", 
+        #        "reading_frequency": 20
+        #    }
+        #]
     ]
-]
+
+    return sensors
+
+SENSORS = get_sensors()
 
 # 2) Choose a weather
 WEATHER = carla.WeatherParameters(
@@ -206,7 +295,11 @@ def save_data_to_disk(sensor_id, frame, data, imu_data, endpoint):
         with open(sensor_endpoint, 'a') as data_file:
             data_txt = f"{frame},{imu_data[0][0]},{imu_data[0][1]},{imu_data[0][2]},{data.compass},{imu_data[1][0]},{imu_data[1][1]},{imu_data[1][2]}\n"
             data_file.write(data_txt)
-
+    elif sensor_id == 'speed':
+        sensor_endpoint = f"{endpoint}/{sensor_id}/speed_data.csv"
+        with open(sensor_endpoint, 'a') as data_file:
+            data_txt = f"{frame},{data}\n"
+            data_file.write(data_txt)
     else:
         print(f"WARNING: Ignoring sensor '{sensor_id}', as no callback method is known for data of type '{type(data)}'.")
 
@@ -301,6 +394,18 @@ def set_endpoint(recorder_info):
     os.makedirs(endpoint)
     return endpoint
 
+def preprocess_sensor_specs(sensor):
+    # Extract the data from the sesor configuration
+    # return: sensor_id, transform, attributes
+    sensor_id, attributes = sensor
+    if sensor_id == "speed":
+        sensor_transform = carla.Transform()
+    else:   
+        sensor_transform = carla.Transform(
+            carla.Location(x=attributes.get('x'), y=attributes.get('y'), z=attributes.get('z')),
+            carla.Rotation(pitch=attributes.get('pitch'), roll=attributes.get('roll'), yaw=attributes.get('yaw'))
+        )
+    return sensor_id, sensor_transform, attributes
 
 def main():
     # running carla from docker container
@@ -329,9 +434,8 @@ def main():
             recorder_folder = recorder_info['folder']
             recorder_start = recorder_info['start_time']
             recorder_duration = recorder_info['duration']
-            print(f"{root_path}/{args.replay_dir}/{recorder_folder}")
             recorder_path_list = glob.glob(f"{root_path}/{args.replay_dir}/{recorder_folder}/*.log")
-            print(recorder_path_list)
+
             if recorder_path_list:
                 recorder_path = recorder_path_list[0]
                 # need read from server
@@ -403,24 +507,23 @@ def main():
             blueprint_library = world.get_blueprint_library()
             sensor_queue = Queue()
             for sensor in SENSORS:
-
+                
                 # Extract the data from the sesor configuration
-                sensor_id, attributes = sensor
-                blueprint_name = attributes.get('bp')
-                sensor_transform = carla.Transform(
-                    carla.Location(x=attributes.get('x'), y=attributes.get('y'), z=attributes.get('z')),
-                    carla.Rotation(pitch=attributes.get('pitch'), roll=attributes.get('roll'), yaw=attributes.get('yaw'))
-                )
+                sensor_id, sensor_transform, attributes = preprocess_sensor_specs(sensor)
+                
+                if sensor_id == 'speed':
+                    sensor = SpeedometerReader(hero, attributes['reading_frequency'])
+                else:
+                    blueprint_name = attributes.get('bp')
+                    # Get the blueprint and add the attributes
+                    blueprint = blueprint_library.find(blueprint_name)
+                    for key, value in attributes.items():
+                        if key in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
+                            continue
+                        blueprint.set_attribute(str(key), str(value))
 
-                # Get the blueprint and add the attributes
-                blueprint = blueprint_library.find(blueprint_name)
-                for key, value in attributes.items():
-                    if key in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
-                        continue
-                    blueprint.set_attribute(str(key), str(value))
-
-                # Create the sensors and its callback
-                sensor = world.spawn_actor(blueprint, sensor_transform, hero)
+                    # Create the sensors and its callback
+                    sensor = world.spawn_actor(blueprint, sensor_transform, hero)
                 add_listener(sensor, sensor_queue, sensor_id)
                 active_sensors.append(sensor)
 
