@@ -34,7 +34,6 @@ except ImportError:
     raise RuntimeError("cannot import pygame, make sure pygame package is installed")
 
 
-SAVE_PATH = os.environ.get("SAVE_PATH", 'eval')
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
 
@@ -184,7 +183,8 @@ class InterfuserAgent(autonomous_agent.AutonomousAgent):
             "thetas": deque(),
         }
         
-        self.config = imp.load_source("MainModel", config_yaml.path_to_config).GlobalConfig()
+        #self.config = imp.load_source("MainModel", config_yaml.path_to_config).GlobalConfig()
+        self.config = config_yaml
         self.skip_frames = self.config.skip_frames
         self.controller = InterfuserController(self.config)
         if isinstance(self.config.model, list):
@@ -217,7 +217,7 @@ class InterfuserAgent(autonomous_agent.AutonomousAgent):
         self.prev_surround_map = None
 
         self.save_path = None
-        if SAVE_PATH is not None:
+        if self.config.save_output and self.config.output_dir is not None:
             now = datetime.datetime.now()
             string = pathlib.Path(config_yaml.routes).stem + "_"
             string += "_".join(
@@ -229,10 +229,11 @@ class InterfuserAgent(autonomous_agent.AutonomousAgent):
 
             print(string)
 
-            self.save_path = pathlib.Path(SAVE_PATH) / string
+            self.save_path = pathlib.Path(self.config.output_dir) / string
             self.save_path.mkdir(parents=True, exist_ok=False)
             (self.save_path / "meta").mkdir(parents=True, exist_ok=False)
-
+            print("Saving outputs to", self.save_path)
+            
     def _init(self):
         self._route_planner = RoutePlanner(4.0, 50.0)
         self._route_planner.set_route(self._global_plan, True)
@@ -575,7 +576,7 @@ class InterfuserAgent(autonomous_agent.AutonomousAgent):
         surface = self._hic.run_interface(tick_data)
         tick_data["surface"] = surface
 
-        if SAVE_PATH is not None:
+        if self.config.output_dir is not None:
             self.save(tick_data)
 
         return control

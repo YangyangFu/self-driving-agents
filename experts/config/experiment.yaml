@@ -4,8 +4,8 @@ absolute_path: '/home/yyf/github/self-driving-agents'
 # general experiment
 track: 'SENSORS' # 'MAP' or 'SENSORS'
 resume: False
-checkpoint: './_results.json'
-debug_checkpoint: './_results_debug.txt'
+checkpoint: './checkpoints/_checkpoint.json'
+debug_checkpoint: '/checkpoints/_checkpoint_debug.txt'
 
 # carla client/server
 host: 'localhost'
