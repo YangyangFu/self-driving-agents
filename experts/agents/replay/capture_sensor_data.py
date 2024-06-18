@@ -31,10 +31,14 @@ import random
 import json
 import threading
 import glob
+import argparse
+import cv2 as cv 
 
 from queue import Queue, Empty
 
 from leaderboard.envs.sensor_interface import SpeedometerReader, OpenDriveMapReader
+from generate_recorder_info import generate_recorder_info
+
 ################### User simulation configuration ####################
 # 1) Choose the sensors
 IMG_WIDTH = 1080
@@ -173,29 +177,50 @@ def get_sensors():
 
 SENSORS = get_sensors()
 
-# 2) Choose a weather
-WEATHER = carla.WeatherParameters(
-    sun_azimuth_angle=-1.0, sun_altitude_angle=70.0,
-    cloudiness=30.0, precipitation=0.0, precipitation_deposits=80.0, wetness=15.0,
-    wind_intensity=10.0,
-    fog_density=2.0, fog_distance=0.0, fog_falloff=0.0)
+# 2) Weatger variants
+WEATHERS = {
+    "ClearNoon": carla.WeatherParameters.ClearNoon,
+    "ClearSunset": carla.WeatherParameters.ClearSunset,
+    "CloudyNoon": carla.WeatherParameters.CloudyNoon,
+    "CloudySunset": carla.WeatherParameters.CloudySunset,
+    "WetNoon": carla.WeatherParameters.WetNoon,
+    "WetSunset": carla.WeatherParameters.WetSunset,
+    "MidRainyNoon": carla.WeatherParameters.MidRainyNoon,
+    "MidRainSunset": carla.WeatherParameters.MidRainSunset,
+    "WetCloudyNoon": carla.WeatherParameters.WetCloudyNoon,
+    "WetCloudySunset": carla.WeatherParameters.WetCloudySunset,
+    "HardRainNoon": carla.WeatherParameters.HardRainNoon,
+    "HardRainSunset": carla.WeatherParameters.HardRainSunset,
+    "SoftRainNoon": carla.WeatherParameters.SoftRainNoon,
+    "SoftRainSunset": carla.WeatherParameters.SoftRainSunset,
+    "ClearNight": carla.WeatherParameters(5.0,0.0,0.0,10.0,-1.0,-90.0,60.0,75.0,1.0,0.0),
+    "CloudyNight": carla.WeatherParameters(60.0,0.0,0.0,10.0,-1.0,-90.0,60.0,0.75,0.1,0.0),
+    "WetNight": carla.WeatherParameters(5.0,0.0,50.0,10.0,-1.0,-90.0,60.0,75.0,1.0,60.0),
+    "WetCloudyNight": carla.WeatherParameters(60.0,0.0,50.0,10.0,-1.0,-90.0,60.0,0.75,0.1,60.0),
+    "SoftRainNight": carla.WeatherParameters(60.0,30.0,50.0,30.0,-1.0,-90.0,60.0,0.75,0.1,60.0),
+    "MidRainyNight": carla.WeatherParameters(80.0,60.0,60.0,60.0,-1.0,-90.0,60.0,0.75,0.1,80.0),
+    "HardRainNight": carla.WeatherParameters(100.0,100.0,90.0,100.0,-1.0,-90.0,100.0,0.75,0.1,100.0),
+}
+WEATHERS_IDS = list(WEATHERS)
 
 # 3) Choose the recorder files
+#RECORDER_INFO = generate_recorder_info()
+
 RECORDER_INFO = [
     {
         'folder': "ScenarioLogs/EnterActorFlow_fast",
         'name': 'EnterActorFlow_fast',
         'start_time': 0,
-        'duration': 0
+        'duration': 2
     }
 ]
 
 # 4) Choose the destination folder
-DESTINATION_FOLDER = "database"
+DESTINATION_FOLDER = "data_collection"
 ################# End user simulation configuration ##################
 
 FPS = 20
-THREADS = 5
+THREADS = 20
 CURRENT_THREADS = 0
 AGENT_TICK_DELAY = 10
 
@@ -266,7 +291,12 @@ def save_data_to_disk(sensor_id, frame, data, imu_data, endpoint):
     CURRENT_THREADS += 1
     if isinstance(data, carla.Image):
         sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.png"
-        data.save_to_disk(sensor_endpoint)
+        if 'rgb' in sensor_id:
+            data.save_to_disk(sensor_endpoint, carla.ColorConverter.Raw)
+        elif 'seg' in sensor_id:
+            data.save_to_disk(sensor_endpoint, carla.ColorConverter.CityScapesPalette)
+        elif 'depth' in sensor_id:
+            data.save_to_disk(sensor_endpoint, carla.ColorConverter.Depth)
 
     elif isinstance(data, carla.LidarMeasurement):
         sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.ply"
@@ -355,10 +385,11 @@ def extract_imu_data(recorder_logs):
     return log_data
 
 
-def save_recorded_data(endpoint, info, logs, start, duration):
+def save_recorded_data(endpoint, info, logs, start, duration, weather):
     captured_logs = logs['records'][int(FPS*start):int(FPS*(start + duration))]
     saved_logs = {"records": captured_logs}
-
+    print(f"\033[1m> Saving the logs in '{endpoint}'\033[0m")
+    
     with open(f'{endpoint}/ego_logs.json', 'w') as fd:
         json.dump(saved_logs, fd, indent=4)
     with open(f'{endpoint}/sensors.json', 'w') as fd:
@@ -368,10 +399,10 @@ def save_recorded_data(endpoint, info, logs, start, duration):
         simulation_info.pop('name')
         simulation_info['input_data'] = simulation_info.pop('folder')
         simulation_info['weather'] = {
-            'sun_azimuth_angle': WEATHER.sun_azimuth_angle, 'sun_altitude_angle': WEATHER.sun_altitude_angle,
-            'cloudiness': WEATHER.cloudiness, 'wind_intensity': WEATHER.sun_azimuth_angle,
-            'precipitation': WEATHER.precipitation, 'precipitation_deposits': WEATHER.precipitation_deposits, 'wetness': WEATHER.wetness,
-            'fog_density':WEATHER.fog_density, 'fog_distance': WEATHER.fog_distance, 'fog_falloff': WEATHER.fog_falloff,
+            'sun_azimuth_angle': weather.sun_azimuth_angle, 'sun_altitude_angle': weather.sun_altitude_angle,
+            'cloudiness': weather.cloudiness, 'wind_intensity': weather.sun_azimuth_angle,
+            'precipitation': weather.precipitation, 'precipitation_deposits': weather.precipitation_deposits, 'wetness': weather.wetness,
+            'fog_density':weather.fog_density, 'fog_distance': weather.fog_distance, 'fog_falloff': weather.fog_falloff,
         }
         json.dump(simulation_info, fd, indent=4)
 
@@ -410,12 +441,16 @@ def preprocess_sensor_specs(sensor):
 def main():
     # running carla from docker container
     CARLA_IN_DOCKER = True 
-    
+
     root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     argparser = argparse.ArgumentParser(description=__doc__)
     argparser.add_argument('--host', default='127.0.0.1', help='IP of the host server (default: 127.0.0.1)')
     argparser.add_argument('--port', default=2000, type=int, help='TCP port to listen to (default: 2000)')
     argparser.add_argument('--replay-dir', default="experts/agents/replay", help='Path to the replay directory in terms of Carla server')
+    argparser.add_argument('--weather-id', 
+                    default=10, 
+                    type=int, 
+                    help='Weather id to use in the simulation: [0, 21]')
     args = argparser.parse_args()
     print(__doc__)
 
@@ -455,7 +490,8 @@ def main():
             world = client.load_world(recorder_map)
             world.tick()
 
-            world.set_weather(WEATHER)
+            weather = WEATHERS[WEATHERS_IDS[args.weather_id]]
+            world.set_weather(weather)
             settings = world.get_settings()
             settings.fixed_delta_seconds = 1 / FPS
             settings.synchronous_mode = True
@@ -472,15 +508,16 @@ def main():
             if recorder_start >= max_duration:
                 print("\033[93mWARNING: Found a start point that exceeds the recoder duration. Ignoring it...\033[0m")
                 continue
-
-            recorder_log_list = glob.glob(f"{root_path}/{recorder_folder}/log.json")
+            
+            recorder_log_list = glob.glob(f"{root_path}/{args.replay_dir}/{recorder_folder}/log.json")
             recorder_log_path = recorder_log_list[0] if recorder_log_list else None
+            print("\033[50m recorder_log_path: ", recorder_log_path, "\033[0m]")
             if recorder_log_path:
                 with open(recorder_log_path) as fd:
                     recorder_log = json.load(fd)
                 recorder_log = add_agent_delay(recorder_log)
                 imu_logs = extract_imu_data(recorder_log)
-                save_recorded_data(endpoint, recorder_info, recorder_log, recorder_start, recorder_duration)
+                save_recorded_data(endpoint, recorder_info, recorder_log, recorder_start, recorder_duration, weather)
             else:
                 imu_logs = None
 
@@ -511,6 +548,7 @@ def main():
                 # Extract the data from the sesor configuration
                 sensor_id, sensor_transform, attributes = preprocess_sensor_specs(sensor)
                 
+                # TODO: speed meter seems not working here. Therefore disabled in the sensor list
                 if sensor_id == 'speed':
                     sensor = SpeedometerReader(hero, attributes['reading_frequency'])
                 else:

@@ -22,3 +22,6 @@ experts/agents/replay/database/*
 # ignore model checkpoints
 *.pth
 *.pth.tar
+
+# ignore data collection for training neural networks
+data_collection
