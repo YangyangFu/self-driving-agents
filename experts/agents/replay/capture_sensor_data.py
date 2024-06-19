@@ -406,6 +406,9 @@ def save_recorded_data(endpoint, info, logs, start, duration, weather):
         }
         json.dump(simulation_info, fd, indent=4)
 
+    future_waypoints = logs['future_waypoints'][int(FPS*start):int(FPS*(start + duration))]
+    with open(f'{endpoint}/future_waypoints.json', 'w') as fd:
+        json.dump(future_waypoints, fd, indent=4)
 
 def set_endpoint(recorder_info):
     def get_new_endpoint(endpoint):
@@ -438,6 +441,93 @@ def preprocess_sensor_specs(sensor):
         )
     return sensor_id, sensor_transform, attributes
 
+def _generate_future_waypoints(map, logs, max_distance = 50, distance = 5):
+    """waypoints for future 50 meters ahead at an interval of 5 meters
+    Reverse the vehicle state and get the future waypoints for the vehicle
+        
+    Args:
+        world (_type_): _description_
+        vehicle (_type_): _description_
+        distance (_type_): _description_
+    """
+    print("Getting future waypoints ----------------")
+    captured_logs = logs['records']
+    num_futures = max_distance // distance
+    future_waypoints = []
+    for i in range(len(captured_logs)):
+        record = captured_logs[i]
+        
+        # vehicle transform
+        transform = record['state']['transform']
+        location = carla.Location(x=transform['x'], y=transform['y'], z=transform['z'])
+        rotation = carla.Rotation(pitch=transform['pitch'], roll=transform['roll'], yaw=transform['yaw'])
+        transform = carla.Transform(location, rotation)
+        waypoint = map.get_waypoint(location, project_to_road=True)
+        
+        j = 1
+        h = 1
+        prev_transform = transform
+        future_waypoints_i = [waypoint]
+        dist = 0
+        while i+j < len(captured_logs):
+            # future transform
+            next_transform = captured_logs[i+j]['state']['transform']
+            next_location = carla.Location(x=next_transform['x'], y=next_transform['y'], z=next_transform['z'])
+            next_rotation = carla.Rotation(pitch=next_transform['pitch'], roll=next_transform['roll'], yaw=next_transform['yaw'])
+            next_transform = carla.Transform(next_location, next_rotation)
+            
+            # estimate distance along road
+            dist += prev_transform.location.distance(next_transform.location)
+            
+            # save waypoints at an interval
+            if dist >= h*distance:
+                waypoint = map.get_waypoint(next_transform.location, project_to_road=True)
+                future_waypoints_i.append(waypoint)
+                h += 1
+                
+            # if we have enough future waypoints
+            if len(future_waypoints_i) == num_futures + 1:
+                break
+            
+            # update 
+            prev_transform = next_transform
+            j += 1
+        
+        # for the tailing frames, where there are not enough future waypoints in record, we will use the waypoints from map
+        needs = num_futures + 1 - len(future_waypoints_i)
+        while needs > 0:
+            waypoint = future_waypoints_i[-1].next(distance)
+            if waypoint is not None:
+                waypoint = waypoint[0]
+                future_waypoints_i.append(waypoint)
+            needs -= 1
+            
+        # save for each frame
+        future_waypoints.append([_from_carla_transform(waypoint.transform) for waypoint in future_waypoints_i[1:]])
+    
+    # save to logs
+    logs['future_waypoints'] = future_waypoints
+    return logs
+    
+def _from_carla_transform(transform):
+    """convert carla transform to dict"""
+    return {
+        'x': transform.location.x,
+        'y': transform.location.y,
+        'z': transform.location.z,
+        'pitch': transform.rotation.pitch,
+        'roll': transform.rotation.roll,
+        'yaw': transform.rotation.yaw
+    }
+
+def _to_carla_transform(transform):
+    """Convert dict to carla transform
+    """
+    return carla.Transform(
+        carla.Location(x=transform['x'], y=transform['y'], z=transform['z']),
+        carla.Rotation(pitch=transform['pitch'], roll=transform['roll'], yaw=transform['yaw'])
+    )
+    
 def main():
     # running carla from docker container
     CARLA_IN_DOCKER = True 
@@ -496,7 +586,7 @@ def main():
             settings.fixed_delta_seconds = 1 / FPS
             settings.synchronous_mode = True
             world.apply_settings(settings)
-
+            world_map = world.get_map()
             world.tick()
 
             max_duration = float(recorder_str.split("\n")[-2].split(" ")[1])
@@ -517,6 +607,8 @@ def main():
                     recorder_log = json.load(fd)
                 recorder_log = add_agent_delay(recorder_log)
                 imu_logs = extract_imu_data(recorder_log)
+                # add future waypoints
+                recorder_log = _generate_future_waypoints(world_map, recorder_log, max_distance=50, distance=5)
                 save_recorded_data(endpoint, recorder_info, recorder_log, recorder_start, recorder_duration, weather)
             else:
                 imu_logs = None
