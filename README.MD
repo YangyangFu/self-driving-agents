@@ -88,3 +88,4 @@ It seems one has to build Carla from source to get it working according to [this
 - [ ] collect training data
   - [x] collect future way points
   - [ ] collect bounding box
+  - [ ] how to remove bounding boxes that are for occuluded objects

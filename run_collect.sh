@@ -5,4 +5,4 @@ export EXPERTS_ROOT=experts
 export DEPENDENCY=pytorch-image-models
 export PYTHONPATH=$PYTHONPATH:${LEADERBOARD_ROOT}:${SCENARIO_RUNNER_ROOT}:${EXPERTS_ROOT}:${DEPENDENCY}
 
-python ./experts/agents/replay/capture_sensor_data.py
+python ./experts/agents/replay/run_data_collect.py

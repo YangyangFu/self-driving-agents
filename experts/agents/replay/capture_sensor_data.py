@@ -33,6 +33,7 @@ import threading
 import glob
 import argparse
 import cv2 as cv 
+import numpy as np
 
 from queue import Queue, Empty
 
@@ -223,7 +224,6 @@ FPS = 20
 THREADS = 20
 CURRENT_THREADS = 0
 AGENT_TICK_DELAY = 10
-
 
 def create_folders(endpoint, sensors):
     for sensor_id, sensor_bp in sensors:
@@ -508,6 +508,30 @@ def _generate_future_waypoints(map, logs, max_distance = 50, distance = 5):
     # save to logs
     logs['future_waypoints'] = future_waypoints
     return logs
+
+def _get_camera_calibration(camera_attributes):
+    """Get camera instrinsic matrix K
+
+    Args:
+        camera_attributes (_type_): _description_
+        is_behind_camera (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    w, h, fov = camera_attributes['image_size_x'], camera_attributes['image_size_y'], camera_attributes['fov']
+    K = np.identity(3)
+    
+    focal = w / (2.0 * np.tan(fov * np.pi / 360.0))
+    
+    # if the camera is behind the vehicle, the focal length should be negative
+    K[0, 0] = focal
+    K[1, 1] = focal
+
+    K[0, 2] = w / 2.0
+    K[1, 2] = h / 2.0
+    
+    return K
     
 def _from_carla_transform(transform):
     """convert carla transform to dict"""
@@ -527,7 +551,83 @@ def _to_carla_transform(transform):
         carla.Location(x=transform['x'], y=transform['y'], z=transform['z']),
         carla.Rotation(pitch=transform['pitch'], roll=transform['roll'], yaw=transform['yaw'])
     )
+def _get_3d_bboxes(world, ego):
+    bboxes = {
+        "traffic_light": [],
+        "stop_sign": [],
+        "vehicle": [],
+        "pedestrian": [],
+    }
+
+    bounding_boxes = world.get_actors().filter('vehicle.*')
+
+def _find_obstacle_bbox(obstacle_type, world, ego, sensor_id, camera_instrincs, max_distance=50):
+    """Returns a list of 3D bounding boxes of the queried obstacle type within the max_distance
+
+    Args:
+        world (_type_): _description_
+        obstacle_type (_type_): _description_
+        max_distance (int, optional): _description_. Defaults to 50.
+    """
+    obst = []
+    actors = world.get_actors()
+    obstacles = actors.filter(obstacle_type)
     
+    for obstacle in obstacles:
+        if obstacle.id != ego.id:
+            # find 3d bounding box
+            bbox_3d_world = _bbox_to_world(obstacle)
+            bbox_3d_sensor = _bbox_world_to_sensor(bbox_3d_world, ego.get_sensor(sensor_id))
+            bbox_3d_img = _bbox_sensor_to_image(bbox_3d_sensor, camera_instrincs)
+            obst.append(bbox_3d_img)
+    return obst
+
+def _bbox_to_world(actor):
+    """Get the 8 vertices of the bounding box in world coordinate
+    
+    return: 
+        cords_world (8, 3): 8 vertices of the bounding box in world coordinate
+    """
+    vertices_carla = actor.bounding_box.get_world_vertices(actor.get_transform())
+    vertices = np.array([[v.x, v.y, v.z] for v in vertices_carla])
+    
+    return vertices
+
+def _bbox_world_to_sensor(cords_world, sensor):
+    """Convert the bounding box from world coordinate to sensor coordinate
+    
+    return: 
+        cords_sensor (8, 3): 8 vertices of the bounding box in sensor coordinate
+    """
+    world_to_sensor_matrix = np.array(sensor.get_transform().get_inverse_matrix())
+    # homogenous coordinates
+    cords_world = np.hstack((cords_world, np.ones((8, 1))))
+    # transform to sensor coordinate
+    cords_sensor = np.dot(world_to_sensor_matrix, cords_world.T).T
+    
+    return cords_sensor[:, :3]
+
+def _bbox_sensor_to_image(cords_sensor, camera_instrinsic):
+    """Convert the bounding box from sensor coordinate to image coordinate
+    
+    return: 
+        cords_image (8, 3): 8 vertices of the bounding box in homogenous image coordinate
+    """
+    # the cords_sensor is from UE4's coordinate system
+    # convert to a right-hand system
+    # (x, y, z) -> (y, -z, x)
+    cords_sensor = cords_sensor[:, [1, 2, 0]]
+    cords_sensor[:, 1] *= -1
+    
+    # project to image plane
+    cords_image = np.dot(camera_instrinsic, cords_sensor.T).T
+    cords_image = cords_image[:, :2] / cords_image[:, 2]
+    cords_image.astype(int)
+    
+    # note if the point is behind the camera, the z value will be negative
+    return cords_image
+
+
 def main():
     # running carla from docker container
     CARLA_IN_DOCKER = True 
@@ -544,8 +644,9 @@ def main():
     args = argparser.parse_args()
     print(__doc__)
 
-    active_sensors = []
-
+    active_sensors = {}
+    sensor_calibrations = {}
+    
     try:
 
         # Initialize the simulation
@@ -654,8 +755,14 @@ def main():
 
                     # Create the sensors and its callback
                     sensor = world.spawn_actor(blueprint, sensor_transform, hero)
+                    # add calibration if it is a camera
+                    if 'rgb' in sensor_id:
+                        sensor_calibrations[sensor_id] = _get_camera_calibration(attributes)
+                        
                 add_listener(sensor, sensor_queue, sensor_id)
-                active_sensors.append(sensor)
+                #active_sensors.append(sensor)
+                # save sensor map
+                active_sensors[sensor_id] = sensor
 
             for _ in range(10):
                 world.tick()
@@ -690,12 +797,17 @@ def main():
                     except Empty:
                         raise ValueError("A sensor took too long to send their data")
 
-                    # Get the data
+                    ## get sensor data
                     sensor_id = sensor_data[0]
                     frame_diff = sensor_data[1] - start_frame
                     data = sensor_data[2]
                     imu_data = [[0,0,0], [0,0,0]] if not imu_logs else imu_logs[int(FPS*recorder_start + frame_diff)]
 
+                    # get bbox of obstacles for rgb cameras
+                    # 
+                    
+                    
+                    # save data
                     res = threading.Thread(target=save_data_to_disk, args=(sensor_id, frame_diff, data, imu_data, endpoint))
                     results.append(res)
                     res.start()
@@ -713,10 +825,10 @@ def main():
             for res in results:
                 res.join()
 
-            for sensor in active_sensors:
+            for _, sensor in active_sensors.items():
                 sensor.stop()
                 sensor.destroy()
-            active_sensors = []
+            active_sensors = {}
 
             for _ in range(50):
                 world.tick()
@@ -724,7 +836,7 @@ def main():
     # End the simulation
     finally:
         # stop and remove cameras
-        for sensor in active_sensors:
+        for _, sensor in active_sensors.items():
             sensor.stop()
             sensor.destroy()
 
