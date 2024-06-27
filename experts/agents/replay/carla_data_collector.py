@@ -5,8 +5,10 @@ import json
 import time
 from queue import Queue, Empty
 import threading
+from PIL import Image 
+import cv2 
 
-
+from image_converter import labels_to_array, labels_to_cityscapes_palette
 from leaderboard.envs.sensor_interface import SpeedometerReader, OpenDriveMapReader
 from generate_recorder_info import generate_recorder_info
 
@@ -16,6 +18,7 @@ class CarlaDataCollector:
         self.world = world
         self.hero_vehicle = hero_vehicle
         self.sensors = self.get_sensors()
+        self.camera_instrinsics = self.get_sensor_instrinsics()
         self.destination_folder = destination_folder
         self.fps = fps
         self.max_threads = max_threads
@@ -27,7 +30,7 @@ class CarlaDataCollector:
     def setup(self):
         self.create_folders()
         self.spawn_sensors()
-
+    
     def get_sensors(self):
         IMG_WIDTH, IMG_HEIGHT = 1080, 720
         sensors = [
@@ -159,12 +162,35 @@ class CarlaDataCollector:
         ]
         return sensors       
 
+    def get_sensor_instrinsics(self):
+        camera_instrinsics = {}
+        for sensor_id, attr in self.sensors:
+            if 'rgb' in sensor_id or 'seg' in sensor_id or 'depth' in sensor_id:
+                width = attr['image_size_x']
+                height = attr['image_size_y']
+                fov = attr['fov']
+                
+                focal = width / (2 * np.tan(fov * np.pi / 360))
+                K = np.identity(3)
+                K[0, 0] = K[1, 1] = focal
+                K[0, 2] = width / 2
+                K[1, 2] = height / 2
+                
+                camera_instrinsics[sensor_id] = K
+        return camera_instrinsics
+
     def create_folders(self):
         for sensor_id, _ in self.sensors:
             sensor_endpoint = f"{self.destination_folder}/{sensor_id}"
             if not os.path.exists(sensor_endpoint):
                 os.makedirs(sensor_endpoint)
 
+            # create bounding box folder for segmentation camera
+            if 'seg' in sensor_id:
+                sensor_endpoint = f"{self.destination_folder}/2d_bbs_{sensor_id.split('_')[1]}"
+                if not os.path.exists(sensor_endpoint):
+                    os.makedirs(sensor_endpoint)
+            
             if 'gnss' in sensor_id:
                 sensor_endpoint = f"{self.destination_folder}/{sensor_id}/gnss_data.csv"
                 with open(sensor_endpoint, 'w') as data_file:
@@ -221,6 +247,29 @@ class CarlaDataCollector:
             sensor_id, frame_diff, data = sensor_data[0], sensor_data[1] - start_frame, sensor_data[2]
             imu_data = [[0,0,0], [0,0,0]]  # Replace with actual IMU data if available
 
+            # if it is seg camera sensor, we output the bounding box for obstacles
+            if 'seg' in sensor_id:
+                seg_label_img = labels_to_array(data)
+                bbs_3d = self._get_3d_bbs_world()
+                bbs_2d = self._get_2d_bbs_img(sensor_id, bbs_3d, seg_label_img)
+                self.save_2d_bbs(bbs_2d, frame_diff, sensor_id)
+                
+                # need plot the image to visualize the bounding box
+                seg_img = labels_to_cityscapes_palette(data)
+                # RGB to BGR
+                seg_img = cv2.cvtColor(seg_img, cv2.COLOR_RGB2BGR)
+                
+                # 3d
+                seg_img = self._draw_3d_bbs(bbs_3d, sensor_id, seg_img)
+                
+                # 2d 
+                for bb in bbs_2d['vehicles']:
+                    x1, y1 = bb[0]
+                    x2, y2 = bb[1]
+                    seg_img = cv2.rectangle(seg_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                pos = sensor_id.split('_')[1]
+                cv2.imwrite(f"{self.destination_folder}/2d_bbs_{pos}/{frame_diff}.png", seg_img)
+                
             res = threading.Thread(target=self.save_data_to_disk, args=(sensor_id, frame_diff, data, imu_data))
             self.results.append(res)
             res.start()
@@ -284,10 +333,403 @@ class CarlaDataCollector:
 
         self.current_threads -= 1
 
+    def save_2d_bbs(self, bbs_2d, frame, seg_camera_id):
+        
+        sensor_type = '2d_bbs'
+        position = seg_camera_id.split('_')[1]
+        save_path = f"{self.destination_folder}/{sensor_type}_{position}"
+        with open(f"{save_path}/{frame}.json", "w") as f:
+            json.dump(bbs_2d, f)
+        
     def cleanup(self):
         for sensor in self.active_sensors.values():
             sensor.stop()
             sensor.destroy()
+
+    def _get_3d_bbs_world(self, max_distance=50):
+        """Get 3d bbox in world coordinates
+
+        Args:
+            max_distance (int, optional): _description_. Defaults to 50.
+
+        Returns:
+            _type_: _description_
+        """
+        bounding_boxes = {
+            "traffic_lights": [],
+            "stop_signs": [],
+            "vehicles": [],
+            "pedestrians": [],
+        }
+
+        bounding_boxes["traffic_lights"] = self._get_3d_bbs_cords_world(
+            "*traffic_light*", max_distance
+        )
+        bounding_boxes["stop_signs"] = self._get_3d_bbs_cords_world("*stop*", max_distance)
+        bounding_boxes["vehicles"] = self._get_3d_bbs_cords_world("*vehicle*", max_distance)
+        bounding_boxes["pedestrians"] = self._get_3d_bbs_cords_world(
+            "*walker*", max_distance
+        )
+
+        return bounding_boxes
+
+    def _get_3d_bbs_cords_world(self, obstacle_type, max_distance=50):
+        """Returns a list of 3d bounding boxes coordinates of type obstacle_type in world coordinates
+
+        Args:
+            obstacle_type (String): Regular expression
+            max_distance (int, optional): max search distance. Returns all bbs in this radius. Defaults to 50.
+
+        Returns:
+            List: List of Boundingboxes
+        """
+        obst = list()
+
+        _actors = self.world.get_actors()
+        _obstacles = _actors.filter(obstacle_type)
+
+        for _obstacle in _obstacles:
+            distance_to_car = _obstacle.get_transform().location.distance(
+                self.hero_vehicle.get_location()
+            )
+
+            if distance_to_car <= max_distance:
+
+                if hasattr(_obstacle, "bounding_box"):
+                    # center of bbox in vehicle coordinates
+                    vertice_world = [v for v in _obstacle.bounding_box.get_world_vertices(_obstacle.get_transform())]
+                    vertice_world = [[v.x, v.y, v.z] for v in vertice_world]
+
+                #else:
+                #    loc = _obstacle.get_transform().location
+                #    bb = np.array([[loc.x, loc.y, loc.z], [0.5, 0.5, 2]])
+
+                obst.append(vertice_world)
+
+        return obst
+    
+    def _find_obstacle_3dbb_world(self, obstacle_type, max_distance=50):
+        """Returns a list of 3d bounding boxes of type obstacle_type in world coordinates
+        If the object does have a bounding box, this is returned. Otherwise a bb
+        of size 0.5,0.5,2 is returned at the origin of the object.
+
+        Args:
+            obstacle_type (String): Regular expression
+            max_distance (int, optional): max search distance. Returns all bbs in this radius. Defaults to 50.
+
+        Returns:
+            List: List of Boundingboxes
+        """
+        obst = list()
+
+        _actors = self.world.get_actors()
+        _obstacles = _actors.filter(obstacle_type)
+
+        for _obstacle in _obstacles:
+            distance_to_car = _obstacle.get_transform().location.distance(
+                self.hero_vehicle.get_location()
+            )
+
+            if distance_to_car <= max_distance:
+
+                if hasattr(_obstacle, "bounding_box"):
+                    # center of bbox in vehicle coordinates
+                    loc = _obstacle.bounding_box.location
+                    # from vehicle to global coordinates
+                    _obstacle.get_transform().transform(loc)
+                    # extent (vector) of bbox in bbox coordinates
+                    extent = _obstacle.bounding_box.extent
+                    # rotate bbox to world coordinate
+                    _rotation_matrix = np.array(
+                        carla.Transform(
+                                carla.Location(0, 0, 0), _obstacle.get_transform().rotation
+                        ).get_matrix()
+                    )
+                    
+
+                    rotated_extent = np.squeeze(
+                        np.array(
+                            (
+                                np.array([[extent.x, extent.y, extent.z, 1]])
+                                @ _rotation_matrix
+                            )[:3]
+                        )
+                    )
+
+                    bb = {
+                        'loc': [loc.x, loc.y, loc.z],
+                        'extent': [rotated_extent[0], rotated_extent[1], rotated_extent[2]],
+                    }
+
+                #else:
+                #    loc = _obstacle.get_transform().location
+                #    bb = np.array([[loc.x, loc.y, loc.z], [0.5, 0.5, 2]])
+
+                obst.append(bb)
+
+        return obst
+
+    def _get_2d_bbs_img(self, seg_camera_id, bb_3d, seg_img):
+        """Returns a dict of all 2d boundingboxes given a camera position, affordances and 3d bbs
+
+        Args:
+            seg_cam ([type]): [description]
+            affordances ([type]): [description]
+            bb_3d ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+
+        # sensor has to be a segmentation camera
+        assert 'seg' in seg_camera_id, "Sensor has to be a segmentation camera to find bboxes that are not occluded."
+        
+        # initialize
+        bounding_boxes = {
+            "traffic_light": list(),
+            "stop_sign": list(),
+            "vehicles": list(),
+            "pedestrians": list(),
+        }
+
+        #if affordances["stop_sign"]:
+        #    baseline = self._get_2d_bb_baseline(self._target_stop_sign)
+        #    bb = self._baseline_to_box(baseline, seg_cam)
+
+        #    if bb is not None:
+        #        bounding_boxes["stop_sign"].append(bb)
+
+        #if affordances["traffic_light"] is not None:
+        #    baseline = self._get_2d_bb_baseline(
+        #        self.hero_vehicle.get_traffic_light(), distance=8
+        #    )
+
+        #    tl_bb = self._baseline_to_box(baseline, seg_cam, height=0.5)
+
+        #    if tl_bb is not None:
+        #        bounding_boxes["traffic_light"].append(
+        #            {
+        #                "bb": tl_bb,
+        #                "state": self._translate_tl_state(
+        #                    self._vehicle.get_traffic_light_state()
+        #                ),
+        #            }
+        #        )
+
+        for vehicle in bb_3d["vehicles"]:
+            # (3, 8) -> (4, 8)
+            bbox3d_vertice_world = np.vstack([np.array(vehicle).T, np.ones((1, 8))])
+            bbox3d_vertice_sensor = self._world_to_sensor(
+                bbox3d_vertice_world, seg_camera_id, False
+            )
+
+            veh_bb = self._coords_sensor_to_2d_bbs(bbox3d_vertice_sensor[:3, :], seg_camera_id)
+
+            # use segmentation camera to check if actor is occlued
+            if veh_bb is not None:
+                if np.any(
+                    seg_img[veh_bb[0][1] : veh_bb[1][1], veh_bb[0][0] : veh_bb[1][0]]
+                    == 10
+                ):
+                    bounding_boxes["vehicles"].append(veh_bb)
+
+        for pedestrian in bb_3d["pedestrians"]:
+
+            trig_loc_world = np.vstack([np.array(pedestrian).T, np.ones((1,8))])
+            cords_x_y_z = self._world_to_sensor(
+                trig_loc_world, seg_camera_id, False
+            )
+
+            cords_x_y_z = np.array(cords_x_y_z)[:3, :]
+
+            ped_bb = self._coords_sensor_to_2d_bbs(cords_x_y_z)
+
+            if ped_bb is not None:
+                if np.any(
+                    seg_img[ped_bb[0][1] : ped_bb[1][1], ped_bb[0][0] : ped_bb[1][0]]
+                    == 4
+                ):
+                    bounding_boxes["pedestrians"].append(ped_bb)
+
+        return bounding_boxes
+
+    def _create_3d_bbs_coords_world(self, bb: dict):
+        """
+        Returns 3D bounding box world coordinates.
+        
+        Args:
+            bb: dict
+                Bounding box information.
+        
+        Returns:
+            np.ndarray (4, 8): 3D bounding box world coordinates.
+            
+        """
+
+        cords = np.zeros((8, 4))
+        extent = bb['extent']
+        loc = bb['loc']
+        cords[0, :] = np.array(
+            [loc[0] + extent[0], loc[1] + extent[1], loc[2] - extent[2], 1]
+        )
+        cords[1, :] = np.array(
+            [loc[0] - extent[0], loc[1] + extent[1], loc[2] - extent[2], 1]
+        )
+        cords[2, :] = np.array(
+            [loc[0] - extent[0], loc[1] - extent[1], loc[2] - extent[2], 1]
+        )
+        cords[3, :] = np.array(
+            [loc[0] + extent[0], loc[1] - extent[1], loc[2] - extent[2], 1]
+        )
+        cords[4, :] = np.array(
+            [loc[0] + extent[0], loc[1] + extent[1], loc[2] + extent[2], 1]
+        )
+        cords[5, :] = np.array(
+            [loc[0] - extent[0], loc[1] + extent[1], loc[2] + extent[2], 1]
+        )
+        cords[6, :] = np.array(
+            [loc[0] - extent[0], loc[1] - extent[1], loc[2] + extent[2], 1]
+        )
+        cords[7, :] = np.array(
+            [loc[0] + extent[0], loc[1] - extent[1], loc[2] + extent[2], 1]
+        )
+        return cords.T
+
+    def _coords_sensor_to_2d_bbs(self, cords, sensor_id):
+        """Returns coords of a 2d box given points in sensor coords
+
+        Args:
+            cords ([type]): [description]
+            sensor_id (str): has to be a segmentation camera
+
+        Returns:
+            [type]: [description]
+        """
+        # assertion
+        assert 'seg' in sensor_id, "Sensor has to be a segmentation camera to find bboxes that are not occluded."
+        
+        # from UE4 coordinate (left-handed sytem) to standard coordinate (right-handed system)
+        # x, y, z -> y, -z, x
+        cords_y_minus_z_x = np.vstack((cords[1, :], -cords[2, :], cords[0, :]))
+
+        bbox = (self.camera_instrinsics[sensor_id] @ cords_y_minus_z_x).T
+
+        camera_bbox = np.vstack(
+            [bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]]
+        ).T
+
+        # get image bounds
+        for id, attr in self.sensors:
+            if sensor_id == id:
+                img_width = attr["image_size_x"]
+                img_height = attr["image_size_y"]
+        
+        # only keep boxes that are in front of camera
+        if np.any(camera_bbox[:, 2] > 0):
+
+            camera_bbox = np.array(camera_bbox)
+            _positive_bb = camera_bbox[camera_bbox[:, 2] > 0]
+
+            min_x = int(
+                np.clip(np.min(_positive_bb[:, 0]), 0, img_width)
+            )
+            min_y = int(
+                np.clip(np.min(_positive_bb[:, 1]), 0, img_height)
+            )
+            max_x = int(
+                np.clip(np.max(_positive_bb[:, 0]), 0, img_width)
+            )
+            max_y = int(
+                np.clip(np.max(_positive_bb[:, 1]), 0, img_height)
+            )
+
+            return [(min_x, min_y), (max_x, max_y)]
+        else:
+            return None
+
+    def _draw_3d_bbs(self, bbs_3d, sensor_id, img):
+        edges = [[0,1], 
+                 [1,3], 
+                 [3,2], 
+                 [2,0], 
+                 [0,4], 
+                 [4,5], 
+                 [5,1], 
+                 [5,7], 
+                 [7,6], 
+                 [6,4], 
+                 [6,2], 
+                 [7,3]]
+        
+        for bb in bbs_3d['vehicles']:
+            # (4, 8)
+            cords_world = np.vstack([np.array(bb).T, np.ones((1, 8))])
+            # (4, 8)
+            cords_sensor = self._world_to_sensor(cords_world, sensor_id, False)
+            # to right-handed system: x, y, z -> y, -z, x
+            cords_sensor = np.vstack((cords_sensor[1, :], -cords_sensor[2, :], cords_sensor[0, :]))
+            cords_img = self.camera_instrinsics[sensor_id] @ cords_sensor
+            cords_img[0,:] = cords_img[0,:] / cords_img[2,:]
+            cords_img[1,:] = cords_img[1,:] / cords_img[2,:]
+            
+            lines = []
+            for edge in edges:
+                p1 = (int(cords_img[0, edge[0]]), int(cords_img[1, edge[0]]))
+                p2 = (int(cords_img[0, edge[1]]), int(cords_img[1, edge[1]]))
+                lines.append((p1, p2))
+            
+            # we shouldn't draw the bounding box if any point are not in front of the camera
+            if np.all(cords_img[2, :] > 0):
+                for p1, p2 in lines:
+                    img = cv2.line(img, p1, p2, (255, 0, 0), 2)
+        
+        return img
+    
+    def _world_to_sensor(self, cords_in_world, sensor_id, move_cords=False):
+        """
+        Transforms world coordinates to sensor.
+        
+        Args:    
+            cords_in_world: np.array (4, n)
+            sensor_id: str
+            move_cords: bool. If True, the cords are moved to the sensor plane if they are behind the sensor.
+        
+        Returns:
+            np.array (4, n)
+        """
+        sensor = self.active_sensors[sensor_id]
+        world_sensor_matrix = np.array(sensor.get_transform().get_inverse_matrix())
+        cords_in_sensor = np.dot(world_sensor_matrix, cords_in_world)
+
+        if move_cords:
+            _num_cords = range(cords_in_sensor.shape[1])
+            modified_cords = np.array([])
+            for i in _num_cords:
+                if cords_in_sensor[0, i] < 0:
+                    for j in _num_cords:
+                        if cords_in_sensor[0, j] > 0:
+                            _direction = cords_in_sensor[:, i] - cords_in_sensor[:, j]
+                            _distance = -cords_in_sensor[0, j] / _direction[0]
+                            new_cord = (
+                                cords_in_sensor[:, j]
+                                + _distance[0, 0] * _direction * 0.9999
+                            )
+                            modified_cords = (
+                                np.hstack([modified_cords, new_cord])
+                                if modified_cords.size
+                                else new_cord
+                            )
+                else:
+                    modified_cords = (
+                        np.hstack([modified_cords, cords_in_sensor[:, i]])
+                        if modified_cords.size
+                        else cords_in_sensor[:, i]
+                    )
+
+            return modified_cords
+        else:
+            return cords_in_sensor
+
 
 # Usage example:
 # client = carla.Client('localhost', 2000)

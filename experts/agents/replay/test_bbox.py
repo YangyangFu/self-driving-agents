@@ -232,7 +232,10 @@ while True:
     # Get the camera matrix 
     world_2_camera = np.array(camera.get_transform().get_inverse_matrix())
 
-
+    #NOTE: check if the location of bbox is the same as the location of the vehicle
+    print("bbox, vehicle location", vehicle.bounding_box.location, vehicle.get_transform().location)
+    print("bbox, vehicle rotation", vehicle.bounding_box.rotation, vehicle.get_transform().rotation)
+    print( "==============")
     for npc in world.get_actors().filter('*vehicle*'):
 
         # Filter out the ego vehicle
