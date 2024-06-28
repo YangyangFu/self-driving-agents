@@ -43,19 +43,17 @@ WEATHERS = {
 WEATHERS_IDS = list(WEATHERS)
 
 # 2) Choose the recorder files
-#RECORDER_INFO = generate_recorder_info()
+RECORDER_INFO = generate_recorder_info()
 
-RECORDER_INFO = [
-    {
-        'folder': "ScenarioLogs/EnterActorFlow_fast",
-        'name': 'EnterActorFlow_fast',
-        'start_time': 0,
-        'duration': 0
-    }
-]
+#RECORDER_INFO = [
+#    {
+#        'folder': "ScenarioLogs/EnterActorFlow_fast",
+#        'name': 'EnterActorFlow_fast',
+#        'start_time': 0,
+#        'duration': 0
+#    }
+#]
 
-# 4) Choose the destination folder
-DESTINATION_FOLDER = "data_collection"
 ################# End user simulation configuration ##################
 
 FPS = 20
@@ -64,7 +62,7 @@ CURRENT_THREADS = 0
 AGENT_TICK_DELAY = 10
 
 
-def set_endpoint(recorder_info):
+def set_endpoint(root_path, recorder_info):
     def get_new_endpoint(endpoint):
         i = 2
         new_endpoint = endpoint + "_" + str(i)
@@ -73,7 +71,7 @@ def set_endpoint(recorder_info):
             new_endpoint = endpoint + "_" + str(i)
         return new_endpoint
 
-    endpoint = f"{DESTINATION_FOLDER}/{recorder_info['name']}"
+    endpoint = f"{root_path}/{recorder_info['name']}"
     if os.path.isdir(endpoint):
         old_endpoint = endpoint
         endpoint = get_new_endpoint(old_endpoint)
@@ -271,6 +269,12 @@ def main():
     args = argparser.parse_args()
     print(__doc__)
 
+    # create output path
+    output_dir = os.path.join("./data_collection", "weather_" + str(args.weather_id))
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Start the simulation
     try:
 
         # Initialize the simulation
@@ -296,7 +300,7 @@ def main():
                 print(f"\033[91mCouldn't find the recorder file for the folder '{recorder_folder}'\033[0m")
                 continue
 
-            endpoint = set_endpoint(recorder_info)
+            endpoint = set_endpoint(output_dir, recorder_info)
 
             print(f"\033[1m> Preparing the world. This may take a while...\033[0m")
             print(recorder_path)

@@ -1,23 +1,25 @@
 import glob 
+import os 
 
+FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 def generate_recorder_info():
     recorder_info = []
 
     # read all replay log files
-    log_dirs = ['RouteLogs', 'ScenarioLogs']
+    log_dirs = ['ScenarioLogs']
 
     # read all subdirectories
     for log_dir in log_dirs:
-        subdirs = glob.glob(f'{log_dir}/*')
+        subdirs = glob.glob(os.path.join(FILE_PATH, f'{log_dir}/*'))
         for subdir in subdirs:
             info = {}
-            info['folder'] = subdir
+            info['folder'] = subdir.replace(FILE_PATH+'/', '')
             
             # find the *.log file
             log_file = glob.glob(f'{subdir}/*.log')
             info['name'] = log_file[0].split('/')[-1].split('.')[0]
             info['start_time'] = 0
-            info['end_time'] = 0
+            info['duration'] = 0
             recorder_info.append(info)
 
     return recorder_info
