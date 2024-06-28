@@ -50,7 +50,7 @@ RECORDER_INFO = [
         'folder': "ScenarioLogs/EnterActorFlow_fast",
         'name': 'EnterActorFlow_fast',
         'start_time': 0,
-        'duration': 2
+        'duration': 0
     }
 ]
 
@@ -271,8 +271,6 @@ def main():
     args = argparser.parse_args()
     print(__doc__)
 
-    active_sensors = {}
-    
     try:
 
         # Initialize the simulation
@@ -360,7 +358,7 @@ def main():
                 time.sleep(1)
 
             print(f"\033[1m> Setting up data collector \033[0m")
-            data_collector = CarlaDataCollector(client, world, hero, endpoint, FPS, max_threads=20)
+            data_collector = CarlaDataCollector(client, world, hero, endpoint, max_threads=20)
             data_collector.setup()
             
             # 
@@ -370,7 +368,7 @@ def main():
             print(f"\033[1m> Running the replayer\033[0m")
             start_time = world.get_snapshot().timestamp.elapsed_seconds
             start_frame = world.get_snapshot().frame
-            results = []
+            data_collector._start_frame = start_frame
 
             while True:
                 current_time = world.get_snapshot().timestamp.elapsed_seconds
@@ -381,26 +379,18 @@ def main():
 
                 completion = format(round(current_duration / recorder_duration * 100, 2), '3.2f')
                 print(f">>>>>  Running recorded simulation: {completion}%  completed  <<<<<", end="\r")
-                data_collector.tick(start_frame)
+                data_dict = data_collector.tick()
+                data_collector.save_data(data_dict)
                 world.tick()
 
-            for res in results:
-                res.join()
-
-            for _, sensor in active_sensors.items():
-                sensor.stop()
-                sensor.destroy()
-            active_sensors = {}
+            # clean up
+            data_collector.cleanup()
 
             for _ in range(50):
                 world.tick()
 
     # End the simulation
     finally:
-        # stop and remove cameras
-        for _, sensor in active_sensors.items():
-            sensor.stop()
-            sensor.destroy()
 
         # set fixed time step length
         settings = world.get_settings()

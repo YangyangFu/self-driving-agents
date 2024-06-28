@@ -12,24 +12,77 @@ from image_converter import labels_to_array, labels_to_cityscapes_palette
 from leaderboard.envs.sensor_interface import SpeedometerReader, OpenDriveMapReader
 from generate_recorder_info import generate_recorder_info
 
+class SensorInterface(object):
+    def __init__(self):
+        self._sensors_objects = {}
+        self._data_buffers = {}
+        self._new_data_buffers = Queue()
+        self._queue_timeout = 2 # default: 2
+
+        #TODO: consider adding map data later
+        self._opendrive_tag = None
+
+
+    def register_sensor(self, tag, sensor_type, sensor):
+        if tag in self._sensors_objects:
+            raise ValueError("Duplicated sensor tag [{}]".format(tag))
+
+        self._sensors_objects[tag] = sensor
+
+        if sensor_type == 'sensor.opendrive_map': 
+            self._opendrive_tag = tag
+
+    def update_sensor(self, tag, data, timestamp):
+        # print("Updating {} - {}".format(tag, timestamp))
+        if tag not in self._sensors_objects:
+            raise ValueError("The sensor with tag [{}] has not been created!".format(tag))
+
+        self._new_data_buffers.put((tag, timestamp, data))
+
+    def get_data(self, frame):
+        try: 
+            data_dict = {}
+            while len(data_dict.keys()) < len(self._sensors_objects.keys()):                
+                # Don't wait for the opendrive sensor
+                if self._opendrive_tag and self._opendrive_tag not in data_dict.keys() \
+                        and len(self._sensors_objects.keys()) == len(data_dict.keys()) + 1:
+                    # print("Ignoring opendrive sensor")
+                    break
+                
+                sensor_data = self._new_data_buffers.get(True, self._queue_timeout)
+                if sensor_data[1] != frame:
+                    continue
+                
+                data_dict[sensor_data[0]] = (sensor_data[1], sensor_data[2])
+
+        except Empty:
+            raise TimeoutError("A sensor took too long to send their data")
+
+        return data_dict
+
+
 class CarlaDataCollector:
-    def __init__(self, client, world, hero_vehicle, destination_folder, fps=20, max_threads=20):
+    def __init__(self, client, world, hero_vehicle, destination_folder, max_threads=20):
         self.client = client
         self.world = world
         self.hero_vehicle = hero_vehicle
-        self.sensors = self.get_sensors()
         self.camera_instrinsics = self.get_sensor_instrinsics()
         self.destination_folder = destination_folder
-        self.fps = fps
         self.max_threads = max_threads
-        self.sensor_queue = Queue()
         self.active_sensors = {}
         self.current_threads = 0
         self.results = []
-
+        
+        # skip a few frames
+        self._start_frame = 0
+        
+        # debug mode: plotting bounding boxes on image
+        self.debug = True
+        
     def setup(self):
-        self.create_folders()
-        self.spawn_sensors()
+        self.create_output_folders()
+        self.create_sensor_interface()
+        self.setup_sensors()
     
     def get_sensors(self):
         IMG_WIDTH, IMG_HEIGHT = 1080, 720
@@ -143,15 +196,15 @@ class CarlaDataCollector:
                     'noise_alt_bias': 0.0, 'noise_lat_bias': 0.0, 'noise_lon_bias': 0.0
                 }
             ],
-            [
-                'imu',
-                {
-                    'bp': 'sensor.other.imu',
-                    'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-                    'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
-                    'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
-                }
-            ],
+            #[
+            #    'imu',
+            #    {
+            #        'bp': 'sensor.other.imu',
+            #        'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+            #        'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
+            #        'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
+            #    }
+            #],
             #[
             #    'speed',
             #    {
@@ -164,7 +217,7 @@ class CarlaDataCollector:
 
     def get_sensor_instrinsics(self):
         camera_instrinsics = {}
-        for sensor_id, attr in self.sensors:
+        for sensor_id, attr in self.get_sensors():
             if 'rgb' in sensor_id or 'seg' in sensor_id or 'depth' in sensor_id:
                 width = attr['image_size_x']
                 height = attr['image_size_y']
@@ -179,8 +232,11 @@ class CarlaDataCollector:
                 camera_instrinsics[sensor_id] = K
         return camera_instrinsics
 
-    def create_folders(self):
-        for sensor_id, _ in self.sensors:
+    def create_sensor_interface(self):
+        self.sensor_interface = SensorInterface()
+
+    def create_output_folders(self):
+        for sensor_id, _ in self.get_sensors():
             sensor_endpoint = f"{self.destination_folder}/{sensor_id}"
             if not os.path.exists(sensor_endpoint):
                 os.makedirs(sensor_endpoint)
@@ -201,9 +257,9 @@ class CarlaDataCollector:
                 with open(sensor_endpoint, 'w') as data_file:
                     data_file.write("Frame,Accelerometer X,Accelerometer y,Accelerometer Z,Compass,Gyroscope X,Gyroscope Y,Gyroscope Z\n")
 
-    def spawn_sensors(self):
+    def setup_sensors(self):
         blueprint_library = self.world.get_blueprint_library()
-        for sensor in self.sensors:
+        for sensor in self.get_sensors():
             sensor_id, sensor_transform, attributes = self.preprocess_sensor_specs(sensor)
             
             if sensor_id == 'speed':
@@ -214,8 +270,9 @@ class CarlaDataCollector:
                     if key not in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
                         blueprint.set_attribute(str(key), str(value))
                 sensor = self.world.spawn_actor(blueprint, sensor_transform, self.hero_vehicle)
-
-            sensor.listen(lambda data, sensor_id=sensor_id: self.sensor_callback(data, sensor_id))
+            
+            self.sensor_interface.register_sensor(sensor_id, attributes['bp'], sensor)
+            sensor.listen(lambda data, sensor_id=sensor_id: self.sensor_interface.update_sensor(sensor_id, data, data.frame))
             self.active_sensors[sensor_id] = sensor
 
     def preprocess_sensor_specs(self, sensor):
@@ -229,48 +286,19 @@ class CarlaDataCollector:
             )
         return sensor_id, sensor_transform, attributes
 
-    def sensor_callback(self, data, sensor_id):
-        self.sensor_queue.put((sensor_id, data.frame, data))
-
-    def tick(self, start_frame):
-        missing_sensors = len(self.sensors)
-        while True:
-            frame = self.world.get_snapshot().frame
-            try:
-                sensor_data = self.sensor_queue.get(True, 2.0)
-                if sensor_data[1] != frame:
-                    continue
-                missing_sensors -= 1
-            except Empty:
-                raise ValueError("A sensor took too long to send their data")
-
-            sensor_id, frame_diff, data = sensor_data[0], sensor_data[1] - start_frame, sensor_data[2]
-            imu_data = [[0,0,0], [0,0,0]]  # Replace with actual IMU data if available
-
-            # if it is seg camera sensor, we output the bounding box for obstacles
-            if 'seg' in sensor_id:
-                seg_label_img = labels_to_array(data)
-                bbs_3d = self._get_3d_bbs_world()
-                bbs_2d = self._get_2d_bbs_img(sensor_id, bbs_3d, seg_label_img)
-                self.save_2d_bbs(bbs_2d, frame_diff, sensor_id)
-                
-                # need plot the image to visualize the bounding box
-                seg_img = labels_to_cityscapes_palette(data)
-                # RGB to BGR
-                seg_img = cv2.cvtColor(seg_img, cv2.COLOR_RGB2BGR)
-                
-                # 3d
-                seg_img = self._draw_3d_bbs(bbs_3d, sensor_id, seg_img)
-                
-                # 2d 
-                for bb in bbs_2d['vehicles']:
-                    x1, y1 = bb[0]
-                    x2, y2 = bb[1]
-                    seg_img = cv2.rectangle(seg_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                pos = sensor_id.split('_')[1]
-                cv2.imwrite(f"{self.destination_folder}/2d_bbs_{pos}/{frame_diff}.png", seg_img)
-                
-            res = threading.Thread(target=self.save_data_to_disk, args=(sensor_id, frame_diff, data, imu_data))
+    def tick(self):
+        frame = self.world.get_snapshot().frame
+        data_dict = self.sensor_interface.get_data(frame)
+        
+        return data_dict
+    
+    def save_data(self, data_dict):
+        
+        # save data to disk multi-threaded
+        for sensor_id in data_dict.keys():
+            frame, data = data_dict[sensor_id]
+            frame_diff = frame - self._start_frame
+            res = threading.Thread(target=self._save_data_to_disk, args=(sensor_id, frame_diff, data))
             self.results.append(res)
             res.start()
 
@@ -278,11 +306,36 @@ class CarlaDataCollector:
                 for res in self.results:
                     res.join()
                 self.results = []
+        
+        # save 2d bounding boxes
+        for sensor_id in data_dict.keys():
+            if 'seg' in sensor_id:
+                _, data = data_dict[sensor_id]
+                seg_label_img = labels_to_array(data)
+                bbs_3d = self._get_3d_bbs_world()
+                bbs_2d = self._get_2d_bbs_img(sensor_id, bbs_3d, seg_label_img)
+                self._save_2d_bbs(bbs_2d, frame_diff, sensor_id)
+            
+                if self.debug:
+                    # need plot the image to visualize the bounding box
+                    seg_img = labels_to_cityscapes_palette(data)
+                    # RGB to BGR
+                    seg_img = cv2.cvtColor(seg_img, cv2.COLOR_RGB2BGR)
+                    # 3d
+                    seg_img = self._draw_3d_bbs(bbs_3d, sensor_id, seg_img)
+                    # 2d 
+                    seg_img = self._draw_2d_bbs(bbs_2d, sensor_id, seg_img)
+        
+                    # save or display 
+                    pos = sensor_id.split('_')[1]
+                    cv2.imwrite(f"{self.destination_folder}/2d_bbs_{pos}/{frame_diff}.png", seg_img)
+        
+    def cleanup(self):
+        for sensor in self.active_sensors.values():
+            sensor.stop()
+            sensor.destroy()
 
-            if missing_sensors <= 0:
-                break
-
-    def save_data_to_disk(self, sensor_id, frame, data, imu_data):
+    def _save_data_to_disk(self, sensor_id, frame, data):
         self.current_threads += 1
         # Your existing save_data_to_disk logic here
         endpoint=self.destination_folder
@@ -333,18 +386,13 @@ class CarlaDataCollector:
 
         self.current_threads -= 1
 
-    def save_2d_bbs(self, bbs_2d, frame, seg_camera_id):
+    def _save_2d_bbs(self, bbs_2d, frame, seg_camera_id):
         
         sensor_type = '2d_bbs'
         position = seg_camera_id.split('_')[1]
         save_path = f"{self.destination_folder}/{sensor_type}_{position}"
         with open(f"{save_path}/{frame}.json", "w") as f:
             json.dump(bbs_2d, f)
-        
-    def cleanup(self):
-        for sensor in self.active_sensors.values():
-            sensor.stop()
-            sensor.destroy()
 
     def _get_3d_bbs_world(self, max_distance=50):
         """Get 3d bbox in world coordinates
@@ -408,67 +456,6 @@ class CarlaDataCollector:
 
         return obst
     
-    def _find_obstacle_3dbb_world(self, obstacle_type, max_distance=50):
-        """Returns a list of 3d bounding boxes of type obstacle_type in world coordinates
-        If the object does have a bounding box, this is returned. Otherwise a bb
-        of size 0.5,0.5,2 is returned at the origin of the object.
-
-        Args:
-            obstacle_type (String): Regular expression
-            max_distance (int, optional): max search distance. Returns all bbs in this radius. Defaults to 50.
-
-        Returns:
-            List: List of Boundingboxes
-        """
-        obst = list()
-
-        _actors = self.world.get_actors()
-        _obstacles = _actors.filter(obstacle_type)
-
-        for _obstacle in _obstacles:
-            distance_to_car = _obstacle.get_transform().location.distance(
-                self.hero_vehicle.get_location()
-            )
-
-            if distance_to_car <= max_distance:
-
-                if hasattr(_obstacle, "bounding_box"):
-                    # center of bbox in vehicle coordinates
-                    loc = _obstacle.bounding_box.location
-                    # from vehicle to global coordinates
-                    _obstacle.get_transform().transform(loc)
-                    # extent (vector) of bbox in bbox coordinates
-                    extent = _obstacle.bounding_box.extent
-                    # rotate bbox to world coordinate
-                    _rotation_matrix = np.array(
-                        carla.Transform(
-                                carla.Location(0, 0, 0), _obstacle.get_transform().rotation
-                        ).get_matrix()
-                    )
-                    
-
-                    rotated_extent = np.squeeze(
-                        np.array(
-                            (
-                                np.array([[extent.x, extent.y, extent.z, 1]])
-                                @ _rotation_matrix
-                            )[:3]
-                        )
-                    )
-
-                    bb = {
-                        'loc': [loc.x, loc.y, loc.z],
-                        'extent': [rotated_extent[0], rotated_extent[1], rotated_extent[2]],
-                    }
-
-                #else:
-                #    loc = _obstacle.get_transform().location
-                #    bb = np.array([[loc.x, loc.y, loc.z], [0.5, 0.5, 2]])
-
-                obst.append(bb)
-
-        return obst
-
     def _get_2d_bbs_img(self, seg_camera_id, bb_3d, seg_img):
         """Returns a dict of all 2d boundingboxes given a camera position, affordances and 3d bbs
 
@@ -486,10 +473,13 @@ class CarlaDataCollector:
         
         # initialize
         bounding_boxes = {
-            "traffic_light": list(),
-            "stop_sign": list(),
-            "vehicles": list(),
-            "pedestrians": list(),
+            "sensor_id": seg_camera_id,
+            "boxes": {
+                "traffic_light": list(),
+                "stop_sign": list(),
+                "vehicles": list(),
+                "pedestrians": list(),
+            }
         }
 
         #if affordances["stop_sign"]:
@@ -531,7 +521,7 @@ class CarlaDataCollector:
                     seg_img[veh_bb[0][1] : veh_bb[1][1], veh_bb[0][0] : veh_bb[1][0]]
                     == 10
                 ):
-                    bounding_boxes["vehicles"].append(veh_bb)
+                    bounding_boxes['boxes']["vehicles"].append(veh_bb)
 
         for pedestrian in bb_3d["pedestrians"]:
 
@@ -549,7 +539,7 @@ class CarlaDataCollector:
                     seg_img[ped_bb[0][1] : ped_bb[1][1], ped_bb[0][0] : ped_bb[1][0]]
                     == 4
                 ):
-                    bounding_boxes["pedestrians"].append(ped_bb)
+                    bounding_boxes['boxes']["pedestrians"].append(ped_bb)
 
         return bounding_boxes
 
@@ -619,7 +609,7 @@ class CarlaDataCollector:
         ).T
 
         # get image bounds
-        for id, attr in self.sensors:
+        for id, attr in self.get_sensors():
             if sensor_id == id:
                 img_width = attr["image_size_x"]
                 img_height = attr["image_size_y"]
@@ -684,6 +674,23 @@ class CarlaDataCollector:
                     img = cv2.line(img, p1, p2, (255, 0, 0), 2)
         
         return img
+    
+    def _draw_2d_bbs(self, bbs_2d, sensor_id, img):
+        colors = {
+            "traffic_light": (255, 0, 0),
+            "stop_sign": (0, 255, 0),
+            "vehicles": (0, 0, 255),
+            "pedestrians": (255, 255, 0),
+        }
+        
+        # check if sensor type is correct
+        if bbs_2d['sensor_id'] == sensor_id:
+            for obstacle_type in bbs_2d['boxes'].keys():
+                for bb in bbs_2d['boxes'][obstacle_type]:
+                            x1, y1 = bb[0]
+                            x2, y2 = bb[1]
+                            img = cv2.rectangle(img, (x1, y1), (x2, y2), colors[obstacle_type], 2)
+        return img 
     
     def _world_to_sensor(self, cords_in_world, sensor_id, move_cords=False):
         """
