@@ -1,5 +1,6 @@
 import glob 
 import os 
+import json
 
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 def generate_recorder_info():
@@ -22,6 +23,10 @@ def generate_recorder_info():
             info['duration'] = 0
             recorder_info.append(info)
 
+    # save the recorder info
+    with open(f'{FILE_PATH}/recorder_info.json', 'w') as f:
+        json.dump(recorder_info, f, indent=4)
+        
     return recorder_info
 
         

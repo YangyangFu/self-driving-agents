@@ -1,0 +1,284 @@
+[
+    {
+        "folder": "ScenarioLogs/InterurbanAdvancedActorFlow_slow_2",
+        "name": "InterurbanAdvancedActorFlow_slow_2",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/InterurbanAdvancedActorFlow_slow",
+        "name": "InterurbanAdvancedActorFlow_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/NonSignalizedJunctionRightTurn_slow",
+        "name": "NonSignalizedJunctionRightTurn_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ParkingExit",
+        "name": "ParkingExit",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ControlLoss",
+        "name": "ControlLoss",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/InterurbanActorFlow_fast",
+        "name": "InterurbanActorFlow_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/SignalizedJunctionRightTurn_fast",
+        "name": "SignalizedJunctionRightTurn_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/NonSignalizedJunctionLeftTurn_slow",
+        "name": "NonSignalizedJunctionLeftTurn_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/InvadingTurn_less_curve",
+        "name": "InvadingTurn_less_curve",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/MergerIntoSlowTrafficV2",
+        "name": "MergerIntoSlowTrafficV2",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/BlockedIntersection",
+        "name": "BlockedIntersection",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/VehicleTurningRoute_right",
+        "name": "VehicleTurningRoute_right",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/YieldToEmergencyVehicle",
+        "name": "YieldToEmergencyVehicle",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/InvadingTurn_much_curve",
+        "name": "InvadingTurn_much_curve",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/MergerIntoSlowTraffic",
+        "name": "MergerIntoSlowTraffic",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/Accident_2",
+        "name": "Accident_2",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/SignalizedJunctionLeftTurn_slow",
+        "name": "SignalizedJunctionLeftTurn_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/DynamicObjectCrossing_right_haybalelb",
+        "name": "DynamicObjectCrossing_right_haybalelb",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ConstructionObstacleTwoWays",
+        "name": "ConstructionObstacleTwoWays",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/HazardAtSideLane",
+        "name": "HazardAtSideLane",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/HardBreakRoute",
+        "name": "HardBreakRoute",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/EnterActorFlow_slow",
+        "name": "EnterActorFlow_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ConstructionObstacle",
+        "name": "ConstructionObstacle",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/NonSignalizedJunctionRightTurn_fast",
+        "name": "NonSignalizedJunctionRightTurn_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/VehicleTurningRoutePedestrian",
+        "name": "VehicleTurningRoutePedestrian",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/InterurbanActorFlow_slow",
+        "name": "InterurbanActorFlow_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/DynamicObjectCrossing_right_container",
+        "name": "DynamicObjectCrossing_right_container",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/HighwayCutIn",
+        "name": "HighwayCutIn",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/OppositeVehicleRunningRedLight",
+        "name": "OppositeVehicleRunningRedLight",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/VehicleOpensDoorTwoWays",
+        "name": "VehicleOpensDoorTwoWays",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/OppositeVehicleTakingPriority",
+        "name": "OppositeVehicleTakingPriority",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/NonSignalizedJunctionLeftTurn_fast",
+        "name": "NonSignalizedJunctionLeftTurn_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/InterurbanAdvancedActorFlow_fast",
+        "name": "InterurbanAdvancedActorFlow_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ParkedObstacleTwoWays",
+        "name": "ParkedObstacleTwoWays",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/PedestrianCrossing",
+        "name": "PedestrianCrossing",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/HazardAtSideLaneTwoWays",
+        "name": "HazardAtSideLaneTwoWays",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/SignalizedJunctionRightTurn_slow",
+        "name": "SignalizedJunctionRightTurn_slow",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/HighwayExit",
+        "name": "HighwayExit",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/SignalizedJunctionLeftTurn_fast",
+        "name": "SignalizedJunctionLeftTurn_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/StaticCutIn",
+        "name": "StaticCutIn",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/Accident",
+        "name": "Accident",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ParkingCutIn",
+        "name": "ParkingCutIn",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/AccidentTwoWays",
+        "name": "AccidentTwoWays",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/EnterActorFlow_fast",
+        "name": "EnterActorFlow_fast",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ParkingCrossingPedestrian",
+        "name": "ParkingCrossingPedestrian",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/ParkedObstacle",
+        "name": "ParkedObstacle",
+        "start_time": 0,
+        "duration": 0
+    },
+    {
+        "folder": "ScenarioLogs/VehicleTurningRoute_left",
+        "name": "VehicleTurningRoute_left",
+        "start_time": 0,
+        "duration": 0
+    }
+]

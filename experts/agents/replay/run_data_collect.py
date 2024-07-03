@@ -43,17 +43,19 @@ WEATHERS = {
 WEATHERS_IDS = list(WEATHERS)
 
 # 2) Choose the recorder files
-RECORDER_INFO = generate_recorder_info()
+#RECORDER_INFO = generate_recorder_info()
 
-#RECORDER_INFO = [
-#    {
-#        'folder': "ScenarioLogs/EnterActorFlow_fast",
-#        'name': 'EnterActorFlow_fast',
-#        'start_time': 0,
-#        'duration': 0
-#    }
-#]
-
+# read from file
+#with open('./experts/agents/replay/recorder_info.json', 'r') as f:
+#    RECORDER_INFO = json.load(f) 
+RECORDER_INFO = [
+    {
+        "folder": "ScenarioLogs/ParkingExit",
+        "name": "ParkingExit",
+        "start_time": 0,
+        "duration": 0
+    }
+]
 ################# End user simulation configuration ##################
 
 FPS = 20
@@ -279,7 +281,7 @@ def main():
 
         # Initialize the simulation
         client = carla.Client(args.host, args.port)
-        client.set_timeout(60.0)
+        client.set_timeout(600.0)
         world = client.get_world()
 
         for recorder_info in RECORDER_INFO:
@@ -384,13 +386,15 @@ def main():
                 completion = format(round(current_duration / recorder_duration * 100, 2), '3.2f')
                 print(f">>>>>  Running recorded simulation: {completion}%  completed  <<<<<", end="\r")
                 data_dict = data_collector.tick()
+                data_collector.display_manager.render(data_dict)
+                
                 data_collector.save_data(data_dict)
                 world.tick()
 
             # clean up
             data_collector.cleanup()
 
-            for _ in range(50):
+            for _ in range(100):
                 world.tick()
 
     # End the simulation
