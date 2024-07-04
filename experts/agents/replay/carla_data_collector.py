@@ -5,8 +5,10 @@ import json
 import time
 from queue import Queue, Empty
 import threading
-from PIL import Image 
+from PIL import Image, ImageDraw
 import cv2 
+
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import pygame
@@ -372,7 +374,7 @@ class SensorsManager(object):
             return data
 
 class CarlaDataCollector:
-    def __init__(self, client, world, hero_vehicle, destination_folder, max_threads=20):
+    def __init__(self, client, world, hero_vehicle, destination_folder, max_threads=20, debug=False):
         self.client = client
         self.world = world
         self.hero_vehicle = hero_vehicle
@@ -386,7 +388,7 @@ class CarlaDataCollector:
         self._start_frame = 0
         
         # debug mode: plotting bounding boxes on image
-        self.debug = True
+        self.debug = debug
         self.display_manager = None
     def setup(self):
         
@@ -443,42 +445,60 @@ class CarlaDataCollector:
         
         return data_dict
     
+    def render(self, data_dict):
+        if self.display_manager and self.debug:
+            self.display_manager.render(data_dict)
+    
     def save_data(self, data_dict):
         
         # save data to disk multi-threaded
         for sensor_id in data_dict.keys():
             frame, data = data_dict[sensor_id]
             frame_diff = frame - self._start_frame
-            res = threading.Thread(target=self._save_data_to_disk, args=(sensor_id, frame_diff, data))
-            self.results.append(res)
-            res.start()
+            thread = threading.Thread(target=self._save_data_to_disk, args=(sensor_id, frame_diff, data))
+            thread.start()
+            self.results.append(thread)
+            
+            # draw and save bounding boxes
+            if 'seg' in sensor_id:
+                sensor = self.sensor_manager.get_sensors()[sensor_id].sensor
+                world_sensor_matrix = np.array(sensor.get_transform().get_inverse_matrix())
+                thread = threading.Thread(target=self._save_and_draw_bbs, args=(sensor_id, frame_diff, data, world_sensor_matrix))
+                thread.start()
+                self.results.append(thread)
 
-            if self.current_threads > self.max_threads:
+            #print(f"Current threads: {self.current_threads}")
+            # wait for all threads to finish
+            if self.current_threads >= self.max_threads:
                 for res in self.results:
                     res.join()
                 self.results = []
         
-        # save 2d bounding boxes
-        for sensor_id in data_dict.keys():
-            if 'seg' in sensor_id:
-                _, data = data_dict[sensor_id]
-                seg_label_img = self._get_segmentation_labels(data)
-                bbs_3d = self._get_3d_bbs_world()
-                bbs_2d = self._get_2d_bbs_img(sensor_id, bbs_3d, seg_label_img)
-                self._save_2d_bbs(bbs_2d, frame_diff, sensor_id)
+    def _save_and_draw_bbs(self, sensor_id, frame, seg_img, world_sensor_matrix):
+        
+            self.current_threads += 1
             
-                if self.debug:
-                    # RGB to BGR
-                    seg_img = cv2.cvtColor(data, cv2.COLOR_RGB2BGR)
-                    # 3d
-                    seg_img = self._draw_3d_bbs(bbs_3d, sensor_id, seg_img)
-                    # 2d 
-                    seg_img = self._draw_2d_bbs(bbs_2d, sensor_id, seg_img)
-        
-                    # save or display 
-                    pos = sensor_id.split('_')[1]
-                    cv2.imwrite(f"{self.destination_folder}/2d_bbs_{pos}/{frame_diff}.png", seg_img)
-        
+            seg_label_img = self._get_segmentation_labels(seg_img)
+            bbs_3d = self._get_3d_bbs_world()
+            bbs_2d = self._get_2d_bbs_img(sensor_id, world_sensor_matrix, bbs_3d, seg_label_img)
+                
+            # extrack bounding boxes using segmentation camera
+            self._save_2d_bbs(bbs_2d, frame, sensor_id)
+            # plot boundding boxes on image
+            # convert array to image
+            #seg_img = Image.fromarray(seg_img)
+            # 3d
+            #seg_img = self._draw_3d_bbs(bbs_3d, world_sensor_matrix, sensor_id, seg_img)
+            # 2d 
+            seg_img = self._draw_2d_bbs(bbs_2d, sensor_id, seg_img)
+
+            # save or display
+            pos = sensor_id.split('_')[1] 
+            endpoint = f"{self.destination_folder}/2d_bbs_{pos}/{frame}.png"
+            self._save_image(seg_img, endpoint)
+            
+            self.current_threads -= 1
+            
     def cleanup(self):
         self.sensor_manager.destroy()
 
@@ -611,7 +631,7 @@ class CarlaDataCollector:
 
         return obst
     
-    def _get_2d_bbs_img(self, seg_camera_id, bb_3d, seg_img):
+    def _get_2d_bbs_img(self, seg_camera_id, world_sensor_matrix, bb_3d, seg_img):
         """Returns a dict of all 2d boundingboxes given a camera position, affordances and 3d bbs
 
         Args:
@@ -665,7 +685,7 @@ class CarlaDataCollector:
             # (3, 8) -> (4, 8)
             bbox3d_vertice_world = np.vstack([np.array(vehicle).T, np.ones((1, 8))])
             bbox3d_vertice_sensor = self._world_to_sensor(
-                bbox3d_vertice_world, seg_camera_id, False
+                bbox3d_vertice_world, world_sensor_matrix, False
             )
 
             veh_bb = self._coords_sensor_to_2d_bbs(bbox3d_vertice_sensor[:3, :], seg_camera_id)
@@ -682,7 +702,7 @@ class CarlaDataCollector:
 
             trig_loc_world = np.vstack([np.array(pedestrian).T, np.ones((1,8))])
             cords_x_y_z = self._world_to_sensor(
-                trig_loc_world, seg_camera_id, False
+                trig_loc_world, world_sensor_matrix, False
             )
 
             cords_x_y_z = np.array(cords_x_y_z)[:3, :]
@@ -750,7 +770,7 @@ class CarlaDataCollector:
         else:
             return None
 
-    def _draw_3d_bbs(self, bbs_3d, sensor_id, img):
+    def _draw_3d_bbs(self, bbs_3d, world_sensor_matrix, sensor_id, img):
         edges = [[0,1], 
                  [1,3], 
                  [3,2], 
@@ -763,12 +783,14 @@ class CarlaDataCollector:
                  [6,4], 
                  [6,2], 
                  [7,3]]
+        # array to image
+        img = Image.fromarray(img)
         
         for bb in bbs_3d['vehicles']:
             # (4, 8)
             cords_world = np.vstack([np.array(bb).T, np.ones((1, 8))])
             # (4, 8)
-            cords_sensor = self._world_to_sensor(cords_world, sensor_id, False)
+            cords_sensor = self._world_to_sensor(cords_world, world_sensor_matrix, False)
             # to right-handed system: x, y, z -> y, -z, x
             cords_sensor = np.vstack((cords_sensor[1, :], -cords_sensor[2, :], cords_sensor[0, :]))
             cords_img = self.camera_instrinsics[sensor_id] @ cords_sensor
@@ -784,11 +806,14 @@ class CarlaDataCollector:
             # we shouldn't draw the bounding box if any point are not in front of the camera
             if np.all(cords_img[2, :] > 0):
                 for p1, p2 in lines:
-                    img = cv2.line(img, p1, p2, (255, 0, 0), 2)
-        
-        return img
+                    ImageDraw.Draw(img).line([p1, p2], fill=(255, 0, 0), width=2)
+            
+        return np.array(img)
     
     def _draw_2d_bbs(self, bbs_2d, sensor_id, img):
+        
+        img = Image.fromarray(img)
+        
         colors = {
             "traffic_light": (255, 0, 0),
             "stop_sign": (0, 255, 0),
@@ -802,10 +827,12 @@ class CarlaDataCollector:
                 for bb in bbs_2d['boxes'][obstacle_type]:
                             x1, y1 = bb[0]
                             x2, y2 = bb[1]
-                            img = cv2.rectangle(img, (x1, y1), (x2, y2), colors[obstacle_type], 2)
-        return img 
+                            ImageDraw.Draw(img).rectangle([x1, y1, x2, y2], outline=colors[obstacle_type])
+                            #img = cv2.rectangle(img, (x1, y1), (x2, y2), colors[obstacle_type], 2)
+        
+        return np.array(img) 
     
-    def _world_to_sensor(self, cords_in_world, sensor_id, move_cords=False):
+    def _world_to_sensor(self, cords_in_world, world_sensor_matrix, move_cords=False):
         """
         Transforms world coordinates to sensor.
         
@@ -817,8 +844,9 @@ class CarlaDataCollector:
         Returns:
             np.array (4, n)
         """
-        sensor = self.sensor_manager.get_sensors()[sensor_id].sensor
-        world_sensor_matrix = np.array(sensor.get_transform().get_inverse_matrix())
+        # this relies on call of current sensor location in the server, which might be wrong transform in an async environment
+        #sensor = self.sensor_manager.get_sensors()[sensor_id].sensor
+        #world_sensor_matrix = np.array(sensor.get_transform().get_inverse_matrix())
         cords_in_sensor = np.dot(world_sensor_matrix, cords_in_world)
 
         if move_cords:

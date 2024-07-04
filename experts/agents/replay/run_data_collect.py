@@ -364,7 +364,8 @@ def main():
                 time.sleep(1)
 
             print(f"\033[1m> Setting up data collector \033[0m")
-            data_collector = CarlaDataCollector(client, world, hero, endpoint, max_threads=20)
+            DEBUG = False
+            data_collector = CarlaDataCollector(client, world, hero, endpoint, max_threads=20, debug=DEBUG)
             data_collector.setup()
             
             # 
@@ -386,7 +387,7 @@ def main():
                 completion = format(round(current_duration / recorder_duration * 100, 2), '3.2f')
                 print(f">>>>>  Running recorded simulation: {completion}%  completed  <<<<<", end="\r")
                 data_dict = data_collector.tick()
-                data_collector.display_manager.render(data_dict)
+                data_collector.render(data_dict)
                 
                 data_collector.save_data(data_dict)
                 world.tick()
