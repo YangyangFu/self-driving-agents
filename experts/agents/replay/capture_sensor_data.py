@@ -31,85 +31,199 @@ import random
 import json
 import threading
 import glob
+import argparse
+import cv2 as cv 
+import numpy as np
 
 from queue import Queue, Empty
 
+from leaderboard.envs.sensor_interface import SpeedometerReader, OpenDriveMapReader
+from generate_recorder_info import generate_recorder_info
+
 ################### User simulation configuration ####################
 # 1) Choose the sensors
-SENSORS = [
-    [
-        'CameraTest',
-        {
-            'bp': 'sensor.camera.rgb',
-            'image_size_x': 720, 'image_size_y': 1080, 'fov': 100,
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
-        },
-    ],
-    [
-        'LidarTest',
-        {
-            'bp': 'sensor.lidar.ray_cast',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'range': 85, 'rotation_frequency': 10, 'channels': 64, 'upper_fov': 10,
-            'lower_fov': -30, 'points_per_second': 600000, 'atmosphere_attenuation_rate': 0.004,
-            'dropoff_general_rate': 0.45, 'dropoff_intensity_limit': 0.8, 'dropoff_zero_intensity': 0.4
-        }
-    ],
-    [
-        'RADARTest',
-        {
-            'bp': 'sensor.other.radar',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'points_per_second': 1500, 'range': 100
+IMG_WIDTH = 1080
+IMG_HEIGHT = 720
+def get_sensors():
+    
+    sensors = [
+        [
+            'rgb_front',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
+            },
+        ],
+        [
+            'seg_front',
+            {
+                'bp': 'sensor.camera.semantic_segmentation',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
+            },
+        ],
+        [
+            'depth_front',
+            {
+                'bp': 'sensor.camera.depth',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0
+            },
+        ],
+        [
+            'rgb_rear',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': -1.3, 'y': 0.0, 'z': 2.3, 'roll': 0.0, 'pitch': 0.0, 'yaw': 180.0
+            },
+        ],
+        [
+            'rgb_left',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': -60.0
+            },  
+        ],
+        [
+            'seg_left',
+            {
+                'bp': 'sensor.camera.semantic_segmentation',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': -60.0
+            },
+        ],
+        [
+            'depth_left',
+            {
+                'bp': 'sensor.camera.depth',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': -60.0
+            },
+        ],
+        [
+            'rgb_right',
+            {
+                'bp': 'sensor.camera.rgb',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 60.0
+            },
+        ],
+        [
+            'seg_right',
+            {
+                'bp': 'sensor.camera.semantic_segmentation',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 60.0
+            },
+            
+        ],
+        [
+            'depth_right',
+            {
+                'bp': 'sensor.camera.depth',
+                'image_size_x': IMG_WIDTH, 'image_size_y': IMG_HEIGHT, 'fov': 100,
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 60.0
+            },
+        ],
+        [
+            'lidar',
+            {
+                'bp': 'sensor.lidar.ray_cast',
+                'x': 1.3, 'y': 0.0, 'z': 2.50, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'range': 85, 'rotation_frequency': 10, 'channels': 64, 'upper_fov': 10,
+                'lower_fov': -30, 'points_per_second': 600000, 'atmosphere_attenuation_rate': 0.004,
+                'dropoff_general_rate': 0.45, 'dropoff_intensity_limit': 0.8, 'dropoff_zero_intensity': 0.4
+            }
+        ],
+        [
+            'radar',
+            {
+                'bp': 'sensor.other.radar',
+                'x': 1.3, 'y': 0.0, 'z': 2.30, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'points_per_second': 1500, 'range': 100
 
-        }
-    ],
-    [
-        'GnssTest',
-        {
-            'bp': 'sensor.other.gnss',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'noise_alt_stddev': 0.000005, 'noise_lat_stddev': 0.000005, 'noise_lon_stddev': 0.000005,
-            'noise_alt_bias': 0.0, 'noise_lat_bias': 0.0, 'noise_lon_bias': 0.0
-        }
-    ],
-    [
-        'IMUTest',
-        {
-            'bp': 'sensor.other.imu',
-            'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
-            'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
-        }
+            }
+        ],
+        [
+            'gnss',
+            {
+                'bp': 'sensor.other.gnss',
+                'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'noise_alt_stddev': 0.000005, 'noise_lat_stddev': 0.000005, 'noise_lon_stddev': 0.000005,
+                'noise_alt_bias': 0.0, 'noise_lat_bias': 0.0, 'noise_lon_bias': 0.0
+            }
+        ],
+        [
+            'imu',
+            {
+                'bp': 'sensor.other.imu',
+                'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
+                'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
+            }
+        ],
+        #[
+        #    'speed',
+        #    {
+        #        "bp": "sensor.speedometer", 
+        #        "reading_frequency": 20
+        #    }
+        #]
     ]
-]
 
-# 2) Choose a weather
-WEATHER = carla.WeatherParameters(
-    sun_azimuth_angle=-1.0, sun_altitude_angle=70.0,
-    cloudiness=30.0, precipitation=0.0, precipitation_deposits=80.0, wetness=15.0,
-    wind_intensity=10.0,
-    fog_density=2.0, fog_distance=0.0, fog_falloff=0.0)
+    return sensors
+
+SENSORS = get_sensors()
+
+# 2) Weatger variants
+WEATHERS = {
+    "ClearNoon": carla.WeatherParameters.ClearNoon,
+    "ClearSunset": carla.WeatherParameters.ClearSunset,
+    "CloudyNoon": carla.WeatherParameters.CloudyNoon,
+    "CloudySunset": carla.WeatherParameters.CloudySunset,
+    "WetNoon": carla.WeatherParameters.WetNoon,
+    "WetSunset": carla.WeatherParameters.WetSunset,
+    "MidRainyNoon": carla.WeatherParameters.MidRainyNoon,
+    "MidRainSunset": carla.WeatherParameters.MidRainSunset,
+    "WetCloudyNoon": carla.WeatherParameters.WetCloudyNoon,
+    "WetCloudySunset": carla.WeatherParameters.WetCloudySunset,
+    "HardRainNoon": carla.WeatherParameters.HardRainNoon,
+    "HardRainSunset": carla.WeatherParameters.HardRainSunset,
+    "SoftRainNoon": carla.WeatherParameters.SoftRainNoon,
+    "SoftRainSunset": carla.WeatherParameters.SoftRainSunset,
+    "ClearNight": carla.WeatherParameters(5.0,0.0,0.0,10.0,-1.0,-90.0,60.0,75.0,1.0,0.0),
+    "CloudyNight": carla.WeatherParameters(60.0,0.0,0.0,10.0,-1.0,-90.0,60.0,0.75,0.1,0.0),
+    "WetNight": carla.WeatherParameters(5.0,0.0,50.0,10.0,-1.0,-90.0,60.0,75.0,1.0,60.0),
+    "WetCloudyNight": carla.WeatherParameters(60.0,0.0,50.0,10.0,-1.0,-90.0,60.0,0.75,0.1,60.0),
+    "SoftRainNight": carla.WeatherParameters(60.0,30.0,50.0,30.0,-1.0,-90.0,60.0,0.75,0.1,60.0),
+    "MidRainyNight": carla.WeatherParameters(80.0,60.0,60.0,60.0,-1.0,-90.0,60.0,0.75,0.1,80.0),
+    "HardRainNight": carla.WeatherParameters(100.0,100.0,90.0,100.0,-1.0,-90.0,100.0,0.75,0.1,100.0),
+}
+WEATHERS_IDS = list(WEATHERS)
 
 # 3) Choose the recorder files
+#RECORDER_INFO = generate_recorder_info()
+
 RECORDER_INFO = [
     {
         'folder': "ScenarioLogs/EnterActorFlow_fast",
         'name': 'EnterActorFlow_fast',
         'start_time': 0,
-        'duration': 0
+        'duration': 2
     }
 ]
 
 # 4) Choose the destination folder
-DESTINATION_FOLDER = "database"
+DESTINATION_FOLDER = "data_collection"
 ################# End user simulation configuration ##################
 
 FPS = 20
-THREADS = 5
+THREADS = 20
 CURRENT_THREADS = 0
 AGENT_TICK_DELAY = 10
-
 
 def create_folders(endpoint, sensors):
     for sensor_id, sensor_bp in sensors:
@@ -177,7 +291,12 @@ def save_data_to_disk(sensor_id, frame, data, imu_data, endpoint):
     CURRENT_THREADS += 1
     if isinstance(data, carla.Image):
         sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.png"
-        data.save_to_disk(sensor_endpoint)
+        if 'rgb' in sensor_id:
+            data.save_to_disk(sensor_endpoint, carla.ColorConverter.Raw)
+        elif 'seg' in sensor_id:
+            data.save_to_disk(sensor_endpoint, carla.ColorConverter.CityScapesPalette)
+        elif 'depth' in sensor_id:
+            data.save_to_disk(sensor_endpoint, carla.ColorConverter.Depth)
 
     elif isinstance(data, carla.LidarMeasurement):
         sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.ply"
@@ -206,7 +325,11 @@ def save_data_to_disk(sensor_id, frame, data, imu_data, endpoint):
         with open(sensor_endpoint, 'a') as data_file:
             data_txt = f"{frame},{imu_data[0][0]},{imu_data[0][1]},{imu_data[0][2]},{data.compass},{imu_data[1][0]},{imu_data[1][1]},{imu_data[1][2]}\n"
             data_file.write(data_txt)
-
+    elif sensor_id == 'speed':
+        sensor_endpoint = f"{endpoint}/{sensor_id}/speed_data.csv"
+        with open(sensor_endpoint, 'a') as data_file:
+            data_txt = f"{frame},{data}\n"
+            data_file.write(data_txt)
     else:
         print(f"WARNING: Ignoring sensor '{sensor_id}', as no callback method is known for data of type '{type(data)}'.")
 
@@ -262,10 +385,11 @@ def extract_imu_data(recorder_logs):
     return log_data
 
 
-def save_recorded_data(endpoint, info, logs, start, duration):
+def save_recorded_data(endpoint, info, logs, start, duration, weather):
     captured_logs = logs['records'][int(FPS*start):int(FPS*(start + duration))]
     saved_logs = {"records": captured_logs}
-
+    print(f"\033[1m> Saving the logs in '{endpoint}'\033[0m")
+    
     with open(f'{endpoint}/ego_logs.json', 'w') as fd:
         json.dump(saved_logs, fd, indent=4)
     with open(f'{endpoint}/sensors.json', 'w') as fd:
@@ -275,13 +399,16 @@ def save_recorded_data(endpoint, info, logs, start, duration):
         simulation_info.pop('name')
         simulation_info['input_data'] = simulation_info.pop('folder')
         simulation_info['weather'] = {
-            'sun_azimuth_angle': WEATHER.sun_azimuth_angle, 'sun_altitude_angle': WEATHER.sun_altitude_angle,
-            'cloudiness': WEATHER.cloudiness, 'wind_intensity': WEATHER.sun_azimuth_angle,
-            'precipitation': WEATHER.precipitation, 'precipitation_deposits': WEATHER.precipitation_deposits, 'wetness': WEATHER.wetness,
-            'fog_density':WEATHER.fog_density, 'fog_distance': WEATHER.fog_distance, 'fog_falloff': WEATHER.fog_falloff,
+            'sun_azimuth_angle': weather.sun_azimuth_angle, 'sun_altitude_angle': weather.sun_altitude_angle,
+            'cloudiness': weather.cloudiness, 'wind_intensity': weather.sun_azimuth_angle,
+            'precipitation': weather.precipitation, 'precipitation_deposits': weather.precipitation_deposits, 'wetness': weather.wetness,
+            'fog_density':weather.fog_density, 'fog_distance': weather.fog_distance, 'fog_falloff': weather.fog_falloff,
         }
         json.dump(simulation_info, fd, indent=4)
 
+    future_waypoints = logs['future_waypoints'][int(FPS*start):int(FPS*(start + duration))]
+    with open(f'{endpoint}/future_waypoints.json', 'w') as fd:
+        json.dump(future_waypoints, fd, indent=4)
 
 def set_endpoint(recorder_info):
     def get_new_endpoint(endpoint):
@@ -301,21 +428,225 @@ def set_endpoint(recorder_info):
     os.makedirs(endpoint)
     return endpoint
 
+def preprocess_sensor_specs(sensor):
+    # Extract the data from the sesor configuration
+    # return: sensor_id, transform, attributes
+    sensor_id, attributes = sensor
+    if sensor_id == "speed":
+        sensor_transform = carla.Transform()
+    else:   
+        sensor_transform = carla.Transform(
+            carla.Location(x=attributes.get('x'), y=attributes.get('y'), z=attributes.get('z')),
+            carla.Rotation(pitch=attributes.get('pitch'), roll=attributes.get('roll'), yaw=attributes.get('yaw'))
+        )
+    return sensor_id, sensor_transform, attributes
+
+def _generate_future_waypoints(map, logs, max_distance = 50, distance = 5):
+    """waypoints for future 50 meters ahead at an interval of 5 meters
+    Reverse the vehicle state and get the future waypoints for the vehicle
+        
+    Args:
+        world (_type_): _description_
+        vehicle (_type_): _description_
+        distance (_type_): _description_
+    """
+    print("Getting future waypoints ----------------")
+    captured_logs = logs['records']
+    num_futures = max_distance // distance
+    future_waypoints = []
+    for i in range(len(captured_logs)):
+        record = captured_logs[i]
+        
+        # vehicle transform
+        transform = record['state']['transform']
+        location = carla.Location(x=transform['x'], y=transform['y'], z=transform['z'])
+        rotation = carla.Rotation(pitch=transform['pitch'], roll=transform['roll'], yaw=transform['yaw'])
+        transform = carla.Transform(location, rotation)
+        waypoint = map.get_waypoint(location, project_to_road=True)
+        
+        j = 1
+        h = 1
+        prev_transform = transform
+        future_waypoints_i = [waypoint]
+        dist = 0
+        while i+j < len(captured_logs):
+            # future transform
+            next_transform = captured_logs[i+j]['state']['transform']
+            next_location = carla.Location(x=next_transform['x'], y=next_transform['y'], z=next_transform['z'])
+            next_rotation = carla.Rotation(pitch=next_transform['pitch'], roll=next_transform['roll'], yaw=next_transform['yaw'])
+            next_transform = carla.Transform(next_location, next_rotation)
+            
+            # estimate distance along road
+            dist += prev_transform.location.distance(next_transform.location)
+            
+            # save waypoints at an interval
+            if dist >= h*distance:
+                waypoint = map.get_waypoint(next_transform.location, project_to_road=True)
+                future_waypoints_i.append(waypoint)
+                h += 1
+                
+            # if we have enough future waypoints
+            if len(future_waypoints_i) == num_futures + 1:
+                break
+            
+            # update 
+            prev_transform = next_transform
+            j += 1
+        
+        # for the tailing frames, where there are not enough future waypoints in record, we will use the waypoints from map
+        needs = num_futures + 1 - len(future_waypoints_i)
+        while needs > 0:
+            waypoint = future_waypoints_i[-1].next(distance)
+            if waypoint is not None:
+                waypoint = waypoint[0]
+                future_waypoints_i.append(waypoint)
+            needs -= 1
+            
+        # save for each frame
+        future_waypoints.append([_from_carla_transform(waypoint.transform) for waypoint in future_waypoints_i[1:]])
+    
+    # save to logs
+    logs['future_waypoints'] = future_waypoints
+    return logs
+
+def _get_camera_calibration(camera_attributes):
+    """Get camera instrinsic matrix K
+
+    Args:
+        camera_attributes (_type_): _description_
+        is_behind_camera (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    w, h, fov = camera_attributes['image_size_x'], camera_attributes['image_size_y'], camera_attributes['fov']
+    K = np.identity(3)
+    
+    focal = w / (2.0 * np.tan(fov * np.pi / 360.0))
+    
+    # if the camera is behind the vehicle, the focal length should be negative
+    K[0, 0] = focal
+    K[1, 1] = focal
+
+    K[0, 2] = w / 2.0
+    K[1, 2] = h / 2.0
+    
+    return K
+    
+def _from_carla_transform(transform):
+    """convert carla transform to dict"""
+    return {
+        'x': transform.location.x,
+        'y': transform.location.y,
+        'z': transform.location.z,
+        'pitch': transform.rotation.pitch,
+        'roll': transform.rotation.roll,
+        'yaw': transform.rotation.yaw
+    }
+
+def _to_carla_transform(transform):
+    """Convert dict to carla transform
+    """
+    return carla.Transform(
+        carla.Location(x=transform['x'], y=transform['y'], z=transform['z']),
+        carla.Rotation(pitch=transform['pitch'], roll=transform['roll'], yaw=transform['yaw'])
+    )
+def _get_3d_bboxes(world, ego):
+    bboxes = {
+        "traffic_light": [],
+        "stop_sign": [],
+        "vehicle": [],
+        "pedestrian": [],
+    }
+
+    bounding_boxes = world.get_actors().filter('vehicle.*')
+
+def _find_obstacle_bbox(obstacle_type, world, ego, sensor_id, camera_instrincs, max_distance=50):
+    """Returns a list of 3D bounding boxes of the queried obstacle type within the max_distance
+
+    Args:
+        world (_type_): _description_
+        obstacle_type (_type_): _description_
+        max_distance (int, optional): _description_. Defaults to 50.
+    """
+    obst = []
+    actors = world.get_actors()
+    obstacles = actors.filter(obstacle_type)
+    
+    for obstacle in obstacles:
+        if obstacle.id != ego.id:
+            # find 3d bounding box
+            bbox_3d_world = _bbox_to_world(obstacle)
+            bbox_3d_sensor = _bbox_world_to_sensor(bbox_3d_world, ego.get_sensor(sensor_id))
+            bbox_3d_img = _bbox_sensor_to_image(bbox_3d_sensor, camera_instrincs)
+            obst.append(bbox_3d_img)
+    return obst
+
+def _bbox_to_world(actor):
+    """Get the 8 vertices of the bounding box in world coordinate
+    
+    return: 
+        cords_world (8, 3): 8 vertices of the bounding box in world coordinate
+    """
+    vertices_carla = actor.bounding_box.get_world_vertices(actor.get_transform())
+    vertices = np.array([[v.x, v.y, v.z] for v in vertices_carla])
+    
+    return vertices
+
+def _bbox_world_to_sensor(cords_world, sensor):
+    """Convert the bounding box from world coordinate to sensor coordinate
+    
+    return: 
+        cords_sensor (8, 3): 8 vertices of the bounding box in sensor coordinate
+    """
+    world_to_sensor_matrix = np.array(sensor.get_transform().get_inverse_matrix())
+    # homogenous coordinates
+    cords_world = np.hstack((cords_world, np.ones((8, 1))))
+    # transform to sensor coordinate
+    cords_sensor = np.dot(world_to_sensor_matrix, cords_world.T).T
+    
+    return cords_sensor[:, :3]
+
+def _bbox_sensor_to_image(cords_sensor, camera_instrinsic):
+    """Convert the bounding box from sensor coordinate to image coordinate
+    
+    return: 
+        cords_image (8, 3): 8 vertices of the bounding box in homogenous image coordinate
+    """
+    # the cords_sensor is from UE4's coordinate system
+    # convert to a right-hand system
+    # (x, y, z) -> (y, -z, x)
+    cords_sensor = cords_sensor[:, [1, 2, 0]]
+    cords_sensor[:, 1] *= -1
+    
+    # project to image plane
+    cords_image = np.dot(camera_instrinsic, cords_sensor.T).T
+    cords_image = cords_image[:, :2] / cords_image[:, 2]
+    cords_image.astype(int)
+    
+    # note if the point is behind the camera, the z value will be negative
+    return cords_image
+
 
 def main():
     # running carla from docker container
     CARLA_IN_DOCKER = True 
-    
+
     root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     argparser = argparse.ArgumentParser(description=__doc__)
     argparser.add_argument('--host', default='127.0.0.1', help='IP of the host server (default: 127.0.0.1)')
     argparser.add_argument('--port', default=2000, type=int, help='TCP port to listen to (default: 2000)')
     argparser.add_argument('--replay-dir', default="experts/agents/replay", help='Path to the replay directory in terms of Carla server')
+    argparser.add_argument('--weather-id', 
+                    default=10, 
+                    type=int, 
+                    help='Weather id to use in the simulation: [0, 21]')
     args = argparser.parse_args()
     print(__doc__)
 
-    active_sensors = []
-
+    active_sensors = {}
+    sensor_calibrations = {}
+    
     try:
 
         # Initialize the simulation
@@ -329,9 +660,8 @@ def main():
             recorder_folder = recorder_info['folder']
             recorder_start = recorder_info['start_time']
             recorder_duration = recorder_info['duration']
-            print(f"{root_path}/{args.replay_dir}/{recorder_folder}")
             recorder_path_list = glob.glob(f"{root_path}/{args.replay_dir}/{recorder_folder}/*.log")
-            print(recorder_path_list)
+
             if recorder_path_list:
                 recorder_path = recorder_path_list[0]
                 # need read from server
@@ -351,12 +681,13 @@ def main():
             world = client.load_world(recorder_map)
             world.tick()
 
-            world.set_weather(WEATHER)
+            weather = WEATHERS[WEATHERS_IDS[args.weather_id]]
+            world.set_weather(weather)
             settings = world.get_settings()
             settings.fixed_delta_seconds = 1 / FPS
             settings.synchronous_mode = True
             world.apply_settings(settings)
-
+            world_map = world.get_map()
             world.tick()
 
             max_duration = float(recorder_str.split("\n")[-2].split(" ")[1])
@@ -368,15 +699,18 @@ def main():
             if recorder_start >= max_duration:
                 print("\033[93mWARNING: Found a start point that exceeds the recoder duration. Ignoring it...\033[0m")
                 continue
-
-            recorder_log_list = glob.glob(f"{root_path}/{recorder_folder}/log.json")
+            
+            recorder_log_list = glob.glob(f"{root_path}/{args.replay_dir}/{recorder_folder}/log.json")
             recorder_log_path = recorder_log_list[0] if recorder_log_list else None
+            print("\033[50m recorder_log_path: ", recorder_log_path, "\033[0m]")
             if recorder_log_path:
                 with open(recorder_log_path) as fd:
                     recorder_log = json.load(fd)
                 recorder_log = add_agent_delay(recorder_log)
                 imu_logs = extract_imu_data(recorder_log)
-                save_recorded_data(endpoint, recorder_info, recorder_log, recorder_start, recorder_duration)
+                # add future waypoints
+                recorder_log = _generate_future_waypoints(world_map, recorder_log, max_distance=50, distance=5)
+                save_recorded_data(endpoint, recorder_info, recorder_log, recorder_start, recorder_duration, weather)
             else:
                 imu_logs = None
 
@@ -403,26 +737,32 @@ def main():
             blueprint_library = world.get_blueprint_library()
             sensor_queue = Queue()
             for sensor in SENSORS:
-
+                
                 # Extract the data from the sesor configuration
-                sensor_id, attributes = sensor
-                blueprint_name = attributes.get('bp')
-                sensor_transform = carla.Transform(
-                    carla.Location(x=attributes.get('x'), y=attributes.get('y'), z=attributes.get('z')),
-                    carla.Rotation(pitch=attributes.get('pitch'), roll=attributes.get('roll'), yaw=attributes.get('yaw'))
-                )
+                sensor_id, sensor_transform, attributes = preprocess_sensor_specs(sensor)
+                
+                # TODO: speed meter seems not working here. Therefore disabled in the sensor list
+                if sensor_id == 'speed':
+                    sensor = SpeedometerReader(hero, attributes['reading_frequency'])
+                else:
+                    blueprint_name = attributes.get('bp')
+                    # Get the blueprint and add the attributes
+                    blueprint = blueprint_library.find(blueprint_name)
+                    for key, value in attributes.items():
+                        if key in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
+                            continue
+                        blueprint.set_attribute(str(key), str(value))
 
-                # Get the blueprint and add the attributes
-                blueprint = blueprint_library.find(blueprint_name)
-                for key, value in attributes.items():
-                    if key in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
-                        continue
-                    blueprint.set_attribute(str(key), str(value))
-
-                # Create the sensors and its callback
-                sensor = world.spawn_actor(blueprint, sensor_transform, hero)
+                    # Create the sensors and its callback
+                    sensor = world.spawn_actor(blueprint, sensor_transform, hero)
+                    # add calibration if it is a camera
+                    if 'rgb' in sensor_id:
+                        sensor_calibrations[sensor_id] = _get_camera_calibration(attributes)
+                        
                 add_listener(sensor, sensor_queue, sensor_id)
-                active_sensors.append(sensor)
+                #active_sensors.append(sensor)
+                # save sensor map
+                active_sensors[sensor_id] = sensor
 
             for _ in range(10):
                 world.tick()
@@ -457,12 +797,17 @@ def main():
                     except Empty:
                         raise ValueError("A sensor took too long to send their data")
 
-                    # Get the data
+                    ## get sensor data
                     sensor_id = sensor_data[0]
                     frame_diff = sensor_data[1] - start_frame
                     data = sensor_data[2]
                     imu_data = [[0,0,0], [0,0,0]] if not imu_logs else imu_logs[int(FPS*recorder_start + frame_diff)]
 
+                    # get bbox of obstacles for rgb cameras
+                    # 
+                    
+                    
+                    # save data
                     res = threading.Thread(target=save_data_to_disk, args=(sensor_id, frame_diff, data, imu_data, endpoint))
                     results.append(res)
                     res.start()
@@ -480,10 +825,10 @@ def main():
             for res in results:
                 res.join()
 
-            for sensor in active_sensors:
+            for _, sensor in active_sensors.items():
                 sensor.stop()
                 sensor.destroy()
-            active_sensors = []
+            active_sensors = {}
 
             for _ in range(50):
                 world.tick()
@@ -491,7 +836,7 @@ def main():
     # End the simulation
     finally:
         # stop and remove cameras
-        for sensor in active_sensors:
+        for _, sensor in active_sensors.items():
             sensor.stop()
             sensor.destroy()
 
