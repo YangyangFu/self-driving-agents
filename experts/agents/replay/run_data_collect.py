@@ -4,13 +4,8 @@ import carla
 import argparse
 import random
 import json
-import threading
 import glob
 import argparse
-import cv2 as cv 
-import numpy as np
-
-from queue import Queue, Empty
 
 from generate_recorder_info import generate_recorder_info
 from carla_data_collector import CarlaDataCollector
@@ -50,11 +45,11 @@ WEATHERS_IDS = list(WEATHERS)
 #    RECORDER_INFO = json.load(f) 
 RECORDER_INFO = [
     {
-        "folder": "ScenarioLogs/ParkingExit",
-        "name": "ParkingExit",
+        "folder": "ScenarioLogs/InterurbanActorFlow_fast",
+        "name": "InterurbanActorFlow_fast",
         "start_time": 0,
         "duration": 0
-    }
+    },
 ]
 ################# End user simulation configuration ##################
 

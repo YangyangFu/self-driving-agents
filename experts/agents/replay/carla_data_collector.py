@@ -6,9 +6,6 @@ import time
 from queue import Queue, Empty
 import threading
 from PIL import Image, ImageDraw
-import cv2 
-
-from concurrent.futures import ThreadPoolExecutor
 
 try:
     import pygame
@@ -17,9 +14,7 @@ try:
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
-from image_converter import labels_to_array, labels_to_cityscapes_palette
-from leaderboard.envs.sensor_interface import SpeedometerReader, OpenDriveMapReader
-from generate_recorder_info import generate_recorder_info
+from leaderboard.envs.sensor_interface import OpenDriveMapReader
 
 
 class DisplayManager:
@@ -97,26 +92,21 @@ class Sensor:
     def _create_sensor(self, sensor_id, sensor_config):
         sensor_id, sensor_transform, attributes = self._preprocess_sensor_specs(sensor_id, sensor_config)
         
-        if sensor_id == 'speed':
-            sensor = SpeedometerReader(self.hero_vehicle, attributes['reading_frequency'])
-        else:
-            blueprint = self.world.get_blueprint_library().find(attributes.get('bp'))
-            for key, value in attributes.items():
-                if key not in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
-                    blueprint.set_attribute(str(key), str(value))
-            sensor = self.world.spawn_actor(blueprint, sensor_transform, self.hero_vehicle)
+
+        blueprint = self.world.get_blueprint_library().find(attributes.get('bp'))
+        for key, value in attributes.items():
+            if key not in ['bp', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']:
+                blueprint.set_attribute(str(key), str(value))
+        sensor = self.world.spawn_actor(blueprint, sensor_transform, self.hero_vehicle)
                 
         return sensor
 
     def _preprocess_sensor_specs(self, sensor_id, attributes):
         
-        if sensor_id == "speed":
-            sensor_transform = carla.Transform()
-        else:   
-            sensor_transform = carla.Transform(
-                carla.Location(x=attributes.get('x'), y=attributes.get('y'), z=attributes.get('z')),
-                carla.Rotation(pitch=attributes.get('pitch'), roll=attributes.get('roll'), yaw=attributes.get('yaw'))
-            )
+        sensor_transform = carla.Transform(
+            carla.Location(x=attributes.get('x'), y=attributes.get('y'), z=attributes.get('z')),
+            carla.Rotation(pitch=attributes.get('pitch'), roll=attributes.get('roll'), yaw=attributes.get('yaw'))
+        )
         return sensor_id, sensor_transform, attributes
     
     def get_sensor(self):
@@ -128,17 +118,6 @@ class Sensor:
         # scale surface to target size
         self.surface = pygame.transform.scale(self.surface, size)
         
-    def save_rgb_image(self, image):
-
-        image.convert(carla.ColorConverter.Raw)
-        array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
-        array = np.reshape(array, (image.height, image.width, 4))
-        array = array[:, :, :3]
-        array = array[:, :, ::-1]
-
-        if self.display_man.render_enabled():
-            self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
-
     def listen(self, callback):
         return self.sensor.listen(callback)
     
@@ -276,22 +255,15 @@ class SensorsManager(object):
                     'noise_alt_bias': 0.0, 'noise_lat_bias': 0.0, 'noise_lon_bias': 0.0
                 }
             ],
-            #[
-            #    'imu',
-            #    {
-            #        'bp': 'sensor.other.imu',
-            #        'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-            #        'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.015,
-            #        'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
-            #    }
-            #],
-            #[
-            #    'speed',
-            #    {
-            #        "bp": "sensor.speedometer", 
-            #        "reading_frequency": 20
-            #    }
-            #]
+            [
+                'imu',
+                {
+                    'bp': 'sensor.other.imu',
+                    'x': 0.0, 'y': 0.0, 'z': 0.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+                    'noise_accel_stddev_x': 0.001, 'noise_accel_stddev_y': 0.001, 'noise_accel_stddev_z': 0.001,
+                    'noise_gyro_stddev_x': 0.001,'noise_gyro_stddev_y': 0.001, 'noise_gyro_stddev_z': 0.001
+                }
+            ],
         ]
         return sensors       
 
@@ -369,7 +341,15 @@ class SensorsManager(object):
             array = array[:, :, :3]
             array = array[:, :, ::-1]
             return array
-
+        elif 'gnss' in sensor_id:
+            array = {"latitude": data.latitude, "longitude": data.longitude, "altitude": data.altitude}
+            return array
+        
+        elif 'imu' in sensor_id:
+            array = {"accelerometer": [data.accelerometer.x, data.accelerometer.y, data.accelerometer.z],
+                     "gyroscope": [data.gyroscope.x, data.gyroscope.y, data.gyroscope.z],
+                     "compass": data.compass}
+            return array
         else: 
             return data
 
@@ -428,21 +408,11 @@ class CarlaDataCollector:
                 sensor_endpoint = f"{self.destination_folder}/2d_bbs_{sensor_id.split('_')[1]}"
                 if not os.path.exists(sensor_endpoint):
                     os.makedirs(sensor_endpoint)
-            
-            if 'gnss' in sensor_id:
-                sensor_endpoint = f"{self.destination_folder}/{sensor_id}/gnss_data.csv"
-                with open(sensor_endpoint, 'w') as data_file:
-                    data_file.write("Frame,Altitude,Latitude,Longitude\n")
-
-            if 'imu' in sensor_id:
-                sensor_endpoint = f"{self.destination_folder}/{sensor_id}/imu_data.csv"
-                with open(sensor_endpoint, 'w') as data_file:
-                    data_file.write("Frame,Accelerometer X,Accelerometer y,Accelerometer Z,Compass,Gyroscope X,Gyroscope Y,Gyroscope Z\n")
-
+                           
     def tick(self):
         frame = self.world.get_snapshot().frame
         data_dict = self.sensor_manager.get_data(frame)
-        
+                
         return data_dict
     
     def render(self, data_dict):
@@ -532,7 +502,7 @@ class CarlaDataCollector:
             sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.ply"
             data.save_to_disk(sensor_endpoint)
 
-        elif isinstance(data, carla.RadarMeasurement):
+        elif 'radar' in sensor_id:
             sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.csv"
             data_txt = f"Altitude,Azimuth,Depth,Velocity\n"
             for point_data in data:
@@ -540,22 +510,16 @@ class CarlaDataCollector:
             with open(sensor_endpoint, 'w') as data_file:
                 data_file.write(data_txt)
 
-        elif isinstance(data, carla.GnssMeasurement):
-            sensor_endpoint = f"{endpoint}/{sensor_id}/gnss_data.csv"
-            with open(sensor_endpoint, 'a') as data_file:
-                data_txt = f"{frame},{data.altitude},{data.latitude},{data.longitude}\n"
-                data_file.write(data_txt)
+        elif 'gnss' in sensor_id:
+            sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.json"
+            with open(sensor_endpoint, 'w') as data_file:
+                json.dump(data, data_file)
+                
+        elif 'imu' in sensor_id:
+            sensor_endpoint = f"{endpoint}/{sensor_id}/{frame}.json"
+            with open(sensor_endpoint, 'w') as data_file:
+                json.dump(data, data_file)
 
-        elif isinstance(data, carla.IMUMeasurement):
-            sensor_endpoint = f"{endpoint}/{sensor_id}/imu_data.csv"
-            with open(sensor_endpoint, 'a') as data_file:
-                data_txt = f"{frame},{imu_data[0][0]},{imu_data[0][1]},{imu_data[0][2]},{data.compass},{imu_data[1][0]},{imu_data[1][1]},{imu_data[1][2]}\n"
-                data_file.write(data_txt)
-        elif sensor_id == 'speed':
-            sensor_endpoint = f"{endpoint}/{sensor_id}/speed_data.csv"
-            with open(sensor_endpoint, 'a') as data_file:
-                data_txt = f"{frame},{data}\n"
-                data_file.write(data_txt)
         else:
             print(f"WARNING: Ignoring sensor '{sensor_id}', as no callback method is known for data of type '{type(data)}'.")
 
@@ -929,7 +893,7 @@ class CarlaDataCollector:
                 (180, 165, 180): 28 # guardrail
             } 
         return hmap
-    
+   
 # Usage example:
 # client = carla.Client('localhost', 2000)
 # world = client.get_world()

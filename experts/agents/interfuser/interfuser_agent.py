@@ -418,6 +418,13 @@ class InterfuserAgent(autonomous_agent.AutonomousAgent):
             .float()
         )
 
+        #LEFT = 1
+        #RIGHT = 2
+        #STRAIGHT = 3
+        #LANEFOLLOW = 4
+        #CHANGELANELEFT = 5
+        #CHANGELANERIGHT = 6
+        
         cmd_one_hot = [0, 0, 0, 0, 0, 0]
         cmd = command - 1
         cmd_one_hot[cmd] = 1
