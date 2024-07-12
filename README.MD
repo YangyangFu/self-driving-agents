@@ -1,18 +1,16 @@
-# Carla 
+# End-to-end Self-driving Agents
 Goal:
-- setup Carla in Docker as server 
-- setup Python client to connect to Carla server
-- setup autonomous agent to control the vehicle in Carla and render
+- implement various end-to-end self-driving agents 
+- perform closed-loop simulation based on Carla simulator
 
-## Examples
-The Carla `leadboard` library has set up a few scenarios to run customized agents for performance comparison. We can start from there.
+## Scope
+The following self-diving agents are being implemented:
+- [ ] Interfuser
+- [ ] Transfuser
+- [ ] MTR/MTR++
+- [ ] CarLLaVA
+- [ ] GAIL
 
-setup environment: check [this](https://leaderboard.carla.org/get_started/) out.
-
-`Shapely` library has an error on Windows 11. need a fresh installation, probably using `conda install` instead of `pip`
-```
-conda install -c conda-forge shapely==1.7.1 numpy==1.18.4
-```
 
 ### Run Carla in Docker
 
@@ -82,10 +80,3 @@ It seems one has to build Carla from source to get it working according to [this
 - if needed, `carla_birdeye_view` library is outdated.
   - the map name in Carla 0.9.1 has changed to `Carla/Maps/TownXX/TownXX` instead of `TownXX` (as programmed). The map name in `parametrized_cache_path()` should be updated so that this can be taken care of.
 
-
-## Todos
-- [x] set up simulation environment
-- [ ] collect training data
-  - [x] collect future way points
-  - [ ] collect bounding box
-  - [ ] how to remove bounding boxes that are for occuluded objects

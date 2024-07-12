@@ -381,10 +381,10 @@ def main():
 
                 completion = format(round(current_duration / recorder_duration * 100, 2), '3.2f')
                 print(f">>>>>  Running recorded simulation: {completion}%  completed  <<<<<", end="\r")
-                data_dict = data_collector.tick()
+                data_dict, traffic_info = data_collector.tick()
                 data_collector.render(data_dict)
                 
-                data_collector.save_data(data_dict)
+                data_collector.save_data(data_dict, traffic_info)
                 world.tick()
 
             # clean up

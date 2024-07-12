@@ -1,3 +1,5 @@
+from typing import List
+
 import carla
 import numpy as np
 import os
@@ -357,6 +359,8 @@ class CarlaDataCollector:
     def __init__(self, client, world, hero_vehicle, destination_folder, max_threads=20, debug=False):
         self.client = client
         self.world = world
+        self.map = self.world.get_map()
+        self._actors = self.world.get_actors()
         self.hero_vehicle = hero_vehicle
         self.destination_folder = destination_folder
         self.max_threads = max_threads
@@ -370,6 +374,21 @@ class CarlaDataCollector:
         # debug mode: plotting bounding boxes on image
         self.debug = debug
         self.display_manager = None
+        
+        # precompute the attributes of static actors in the map such as traffic lights, stop signs, etc.
+        self._precompute_lights()    
+        self._precompute_stop_signs()
+    
+    def _precompute_lights(self):
+        self._light_actors = self._actors.filter("*traffic_light*")
+        self._lights_wp = {}
+        for light in self._light_actors:
+            self._lights_wp[light] = self.map.get_waypoint(light.get_location())
+        
+    def _precompute_stop_signs(self):
+        self._stop_actors = self._actors.filter("*stop*")
+
+            
     def setup(self):
         
         self.sensor_manager = SensorsManager(self.world, self.hero_vehicle)
@@ -408,18 +427,30 @@ class CarlaDataCollector:
                 sensor_endpoint = f"{self.destination_folder}/2d_bbs_{sensor_id.split('_')[1]}"
                 if not os.path.exists(sensor_endpoint):
                     os.makedirs(sensor_endpoint)
+        
+        # save traffic info
+        traffic_info_endpoint = f"{self.destination_folder}/traffic_info"
+        if not os.path.exists(traffic_info_endpoint):
+            os.makedirs(traffic_info_endpoint)
+        
                            
     def tick(self):
+        
+        # sensor data from the current frame
         frame = self.world.get_snapshot().frame
         data_dict = self.sensor_manager.get_data(frame)
-                
-        return data_dict
+        
+        # get traffic info
+        traffic_info = self._get_traffic_info()
+        
+        
+        return data_dict, traffic_info
     
     def render(self, data_dict):
         if self.display_manager and self.debug:
             self.display_manager.render(data_dict)
     
-    def save_data(self, data_dict):
+    def save_data(self, data_dict, traffic_info):
         
         # save data to disk multi-threaded
         for sensor_id in data_dict.keys():
@@ -443,6 +474,14 @@ class CarlaDataCollector:
                 for res in self.results:
                     res.join()
                 self.results = []
+
+        # save traffic info
+        def _save_traffic_info(endpoint, traffic_info):
+            with open(endpoint, 'w') as f:
+                json.dump(traffic_info, f)
+        
+        traffic_info_endpoint = f"{self.destination_folder}/traffic_info/{frame_diff}.json"
+        _save_traffic_info(traffic_info_endpoint, traffic_info)
         
     def _save_and_draw_bbs(self, sensor_id, frame, seg_img, world_sensor_matrix):
         
@@ -571,9 +610,7 @@ class CarlaDataCollector:
             List: List of Boundingboxes
         """
         obst = list()
-
-        _actors = self.world.get_actors()
-        _obstacles = _actors.filter(obstacle_type)
+        _obstacles = self._actors.filter(obstacle_type)
 
         for _obstacle in _obstacles:
             distance_to_car = _obstacle.get_transform().location.distance(
@@ -893,7 +930,124 @@ class CarlaDataCollector:
                 (180, 165, 180): 28 # guardrail
             } 
         return hmap
-   
+
+    def _get_traffic_info(self):
+        """ Get traffic rule data such as traffic light, traffic signs, road attributes that is affecting the vehicle
+
+        'red_light': {'loc': 
+                  'extent': 
+                  'orientation:' 
+                    'state': }
+        'stop_sign': 
+        
+        'is_junction':
+        
+        """
+        info = {
+            "red_light": {},
+            "stop_sign": {},
+            "is_junction": False
+        }
+        
+        # get light: here if not green, we consider it as red
+        light = self._get_red_lights(max_distance=20)
+        if light:
+            transform = light.trigger_volume
+            info['red_light'] = {
+                'loc': [transform.location.x, transform.location.y, transform.location.z],
+                'extent': [light.bounding_box.extent.x, light.bounding_box.extent.y, light.bounding_box.extent.z],
+                'orientation': [np.radians(transform.rotation.roll), np.radians(transform.rotation.pitch), np.radians(transform.rotation.yaw)],
+                'state': self._carla_light_state_to_str(light.state)
+            }
+         
+         # get stop signs
+        stop_sign = self._get_stop_signs(max_distance=20)
+        if stop_sign:
+            trigger_volume = stop_sign.trigger_volume
+            info['stop_sign'] = {
+                'loc': [trigger_volume.location.x, trigger_volume.location.y, trigger_volume.location.z],
+                'extent': [stop_sign.bounding_box.extent.x, stop_sign.bounding_box.extent.y, stop_sign.bounding_box.extent.z],
+                'orientation': [np.radians(trigger_volume.rotation.roll), np.radians(trigger_volume.rotation.pitch), np.radians(trigger_volume.rotation.yaw)]
+            }
+        
+        # check if the vehicle is at junction
+        info['is_junction'] = self.map.get_waypoint(self.hero_vehicle.get_location()).is_junction
+        
+        return info    
+    
+    def _carla_light_state_to_str(self, state):
+        if state == carla.TrafficLightState.Red:
+            return 'red'
+        elif state == carla.TrafficLightState.Yellow:
+            return 'yellow'
+        elif state == carla.TrafficLightState.Green:
+            return 'green'
+        elif state == carla.TrafficLightState.Off:
+            return 'off'
+        else:
+            return 'unknown'
+    
+    def _get_red_lights(self, max_distance=20):
+        
+        
+        if self.hero_vehicle.get_traffic_light_state() != carla.TrafficLightState.Green:
+            light = self.hero_vehicle.get_traffic_light()
+            return light
+        
+        # if get green status: -> green light or no light affecting the car
+        # find the cloest light within a distance
+        light, _ = self._find_closest_valid_light(self.hero_vehicle.get_location(), max_distance)
+        if light is not None and light.state != carla.TrafficLightState.Green:
+            return light
+        
+        return None
+        
+    def _find_closest_valid_light(self, vehicle_loc, max_distance=20):
+        vehicle_wp = self.map.get_waypoint(vehicle_loc, project_to_road=True)
+        
+        closest_light = None
+        cloest_light_wp = None 
+        for light, light_wp in self._lights_wp.items():
+            
+            # if light is on the same road as the car and affecting the lane where the vehicle is:
+            if light_wp.road_id == vehicle_wp.road_id and light_wp.lane_id * vehicle_wp.lane_id > 0:
+                # only calculate the straight ahead distance
+                dist = self._distance_2d(light_wp.location, vehicle_loc)
+                if dist <= max_distance:
+                    max_distance = dist
+                    closest_light = light
+                    cloest_light_wp = light_wp
+                    
+        return closest_light, cloest_light_wp
+        
+    
+    def _get_stop_signs(self, max_distance=20):    
+        """ Get stop signs that are within a certain distance and in front of the vehicle
+        """
+
+        vehicle_transform = self.hero_vehicle.get_transform()
+        vehicle_direction = vehicle_transform.get_forward_vector()
+        vehicle_direction = np.array([vehicle_direction.x, vehicle_direction.y])
+        vehicle_wp = self.map.get_waypoint(vehicle_transform.location, project_to_road=True)
+        wp_direction = vehicle_wp.transform.get_forward_vector()
+        wp_direction = np.array([wp_direction.x, wp_direction.y])
+        
+        # moving along the road
+        closest_stop = None
+        if np.dot(vehicle_direction, wp_direction) > 0:
+            for stop in self._stop_actors:
+                stop_loc = stop.bounding_box.location
+                dist = self._distance_2d(vehicle_transform.location, stop_loc)
+                if dist <= max_distance:
+                    max_distance = dist
+                    closest_stop = stop        
+        return closest_stop
+            
+    def _distance_2d(self, loc1, loc2):
+        return np.sqrt((loc1.x - loc2.x)**2 + (loc1.y - loc2.y)**2)
+        
+        
+
 # Usage example:
 # client = carla.Client('localhost', 2000)
 # world = client.get_world()
